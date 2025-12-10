@@ -36,4 +36,4 @@ INSERT INTO ai_pattern_rules_global (name, description, category, pattern_type, 
 ('It Goes Without Saying', 'Filler phrase', 'phrase_replacement', 'exact', 'it goes without saying', ARRAY['obviously', 'clearly', ''], 'low'),
 
 -- Sentence structure
-('Repetitive Sentence Starts', 'Multiple sentences starting with "This"', 'sentence_structure', 'ai_detection', NULL, ARRAY[], 'medium');
+('Repetitive Sentence Starts', 'Multiple sentences starting with "This"', 'sentence_structure', 'ai_detection', NULL, ARRAY[]::TEXT[], 'medium');
