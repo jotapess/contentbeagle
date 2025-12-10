@@ -10,13 +10,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Repository**: https://github.com/jotapess/contentbeagle
 
-### Current Status: Phase 1 COMPLETE
+### Current Status: Phase 1 COMPLETE - Phase 2 Ready to Start
 
 **Phase 1 (Frontend with Mock Data)** - COMPLETED December 2024
 - 27 routes built with Next.js 14+ App Router
 - All UI modules functional: Auth, Brands, Articles, AI Rules, Team, Settings
 - Mock data layer for all entities (users, teams, brands, articles, etc.)
 - shadcn/ui components integrated with Tailwind CSS v4
+
+**Planning Milestone** - COMPLETED December 10, 2024
+- Comprehensive implementation roadmap created (57 sprints, 16 weeks)
+- Detailed day-by-day execution order (110 days)
+- Risk analysis and mitigation strategies documented
+- GitHub issues #1-#18 created and organized on project board
 
 ---
 
@@ -144,7 +150,38 @@ contentbeagle/
 
 ---
 
-## Development Phases
+## Implementation Timeline (12-16 Weeks)
+
+### Execution Strategy: 7 Batches
+
+The implementation is organized into 7 logical batches to minimize context switching:
+
+| Batch | Phase | Weeks | Focus | Critical Path |
+|-------|-------|-------|-------|---------------|
+| 1 | 2.1 | 1 | Database Foundation (21 tables) | YES - blocks everything |
+| 2 | 2.2 | 2 | Row-Level Security Policies | YES - blocks auth |
+| 3 | 2.3-2.4 | 3-4 | Auth + Data Migration | YES - blocks Phase 3 |
+| 4 | 3.1-3.2 | 5-7 | AI Provider + Content Generation | YES - core product |
+| 5 | 3.3-3.4 | 7-9 | Humanization + Brand Extraction | YES - differentiators |
+| 6 | 4.x | 10-13 | External APIs (Firecrawl, DataForSEO) | Parallel possible |
+| 7 | 5.x | 14-16 | Polish + Production | Final validation |
+
+### Critical Path
+```
+Database (21 tables) -> RLS Policies -> Auth -> Data Layer -> AI Integration -> External APIs -> Production
+```
+
+**Key Insight**: Phase 2 blocks everything. No work on Phases 3-5 can proceed until database and auth are complete.
+
+### Parallel Work Opportunities
+After Phase 2 complete (Week 4):
+- Phase 3 (AI) and Phase 4 (External APIs) can partially overlap
+- Start Firecrawl client (4.1.1) once API keys working (after 2.4.5)
+- DataForSEO client (4.2.1) can run parallel to Phase 3 work
+
+---
+
+## Development Phases - Detailed
 
 ### Phase 1: Frontend with Mock Data - COMPLETE
 - [x] All 27 routes implemented
@@ -158,33 +195,108 @@ contentbeagle/
 - [x] Mock data for all entities
 - [x] shadcn/ui components integrated
 
-### Phase 2: Supabase Integration - NEXT
-- [ ] Set up Supabase project
-- [ ] Run database migrations (21 tables from DATABASE.md)
-- [ ] Implement RLS policies
-- [ ] Set up Supabase Auth (email, Google, GitHub OAuth)
-- [ ] Replace mock data with real database queries
-- [ ] Implement Vault for API key encryption
+### Phase 2: Supabase Integration (Weeks 1-4) - NEXT
+**GitHub Issues**: #1, #2, #3, #4, #5
 
-### Phase 3: AI Provider Integration
-- [ ] Implement BYOK provider registry (Vercel AI SDK)
-- [ ] Content generation with streaming
-- [ ] Brand voice analysis/extraction
-- [ ] AI pattern detection and removal
-- [ ] SEO enhancement suggestions
+**Milestone 2.1 - Database Foundation** (Week 1):
+- [ ] Sprint 2.1.1: Supabase project setup
+- [ ] Sprint 2.1.2: Core multi-tenancy tables (teams, team_members, profiles)
+- [ ] Sprint 2.1.3: Brand & content tables (8 tables)
+- [ ] Sprint 2.1.4: Crawling & AI tables (13 tables)
+- [ ] Sprint 2.1.5: Indexes & performance
 
-### Phase 4: External APIs
-- [ ] Firecrawl integration (brand discovery, site crawling)
-- [ ] DataForSEO integration (keyword opportunities)
-- [ ] Usage tracking and quotas
-- [ ] Caching with Upstash Redis
+**Milestone 2.2 - Row-Level Security** (Week 2):
+- [ ] Sprint 2.2.1: RLS helper functions (is_team_member, has_team_role)
+- [ ] Sprint 2.2.2: Core table RLS policies
+- [ ] Sprint 2.2.3: Brand & article RLS policies
+- [ ] Sprint 2.2.4: API keys & usage RLS
 
-### Phase 5: Polish & Production
-- [ ] Tiptap editor integration
-- [ ] Error handling and edge cases
-- [ ] Performance optimization
-- [ ] Security audit
-- [ ] Production deployment
+**Milestone 2.3 - Authentication** (Weeks 2-3):
+- [ ] Sprint 2.3.1: Auth configuration (email, Google, GitHub)
+- [ ] Sprint 2.3.2: Supabase client setup
+- [ ] Sprint 2.3.3: Auth UI pages
+- [ ] Sprint 2.3.4: Protected routes & middleware
+
+**Milestone 2.4 - Data Migration** (Weeks 3-4):
+- [ ] Sprint 2.4.1: Type generation & base queries
+- [ ] Sprint 2.4.2: Team & user data migration
+- [ ] Sprint 2.4.3: Brand data migration
+- [ ] Sprint 2.4.4: Article data migration (XL - includes version history, workflow)
+- [ ] Sprint 2.4.5: AI rules & settings data
+- [ ] Sprint 2.4.6: Testing & validation
+
+### Phase 3: AI Provider Integration (Weeks 5-9)
+**GitHub Issues**: #6, #7, #8, #9, #12
+
+**Milestone 3.1 - Provider Abstraction**:
+- [ ] Sprint 3.1.1: Provider registry setup (Vercel AI SDK)
+- [ ] Sprint 3.1.2: Generation service interface
+- [ ] Sprint 3.1.3: Token estimation & usage tracking
+
+**Milestone 3.2 - Content Generation**:
+- [ ] Sprint 3.2.1: Prompt engineering foundation
+- [ ] Sprint 3.2.2: Basic generation API with streaming
+- [ ] Sprint 3.2.3: Frontend generation integration
+- [ ] Sprint 3.2.4: SEO-aware generation
+
+**Milestone 3.3 - AI Pattern Removal**:
+- [ ] Sprint 3.3.1: Pattern detection engine
+- [ ] Sprint 3.3.2: Humanization prompt
+- [ ] Sprint 3.3.3: Humanization API & UI
+- [ ] Sprint 3.3.4: Pattern rule management
+
+**Milestone 3.4 - Brand Voice**:
+- [ ] Sprint 3.4.1: Brand extraction prompt
+- [ ] Sprint 3.4.2: Brand discovery integration
+
+### Phase 4: External APIs (Weeks 10-13)
+**GitHub Issues**: #10, #11, #13, #14
+
+**Milestone 4.1 - Firecrawl**:
+- [ ] Sprint 4.1.1: Firecrawl client wrapper
+- [ ] Sprint 4.1.2: Crawl job management
+- [ ] Sprint 4.1.3: Brand discovery UI integration
+- [ ] Sprint 4.1.4: Incremental crawling
+
+**Milestone 4.2 - DataForSEO**:
+- [ ] Sprint 4.2.1: DataForSEO client wrapper
+- [ ] Sprint 4.2.2: SEO service & keyword opportunities
+- [ ] Sprint 4.2.3: SEO optimization UI
+- [ ] Sprint 4.2.4: Caching & cost optimization (Upstash Redis)
+
+**Milestone 4.3 - Cross-Linking**:
+- [ ] Sprint 4.3.1: Page summary generation
+- [ ] Sprint 4.3.2: Link suggestion engine
+- [ ] Sprint 4.3.3: Cross-linking UI
+
+**Milestone 4.4 - Rate Limiting**:
+- [ ] Sprint 4.4.1: Rate limiter implementation
+- [ ] Sprint 4.4.2: Quota management
+
+### Phase 5: Polish & Production (Weeks 14-16)
+**GitHub Issues**: #15, #16, #17, #18
+
+**Milestone 5.1 - Rich Text Editor**:
+- [ ] Sprint 5.1.1: Tiptap setup & basic editor
+- [ ] Sprint 5.1.2: Advanced editor features
+
+**Milestone 5.2 - Error Handling**:
+- [ ] Sprint 5.2.1: Error handling framework
+- [ ] Sprint 5.2.2: Retry & fallback logic
+
+**Milestone 5.3 - Performance**:
+- [ ] Sprint 5.3.1: Database query optimization
+- [ ] Sprint 5.3.2: Frontend performance
+
+**Milestone 5.4 - Security**:
+- [ ] Sprint 5.4.1: Security review
+- [ ] Sprint 5.4.2: Penetration testing
+
+**Milestone 5.5 - Deployment**:
+- [ ] Sprint 5.5.1: Environment setup
+- [ ] Sprint 5.5.2: Monitoring & analytics
+- [ ] Sprint 5.5.3: Deployment & launch
+- [ ] Sprint 5.5.4: Post-launch monitoring
 
 ---
 
@@ -226,6 +338,13 @@ draft -> editing -> seo_review -> cross_linking -> humanizing -> polished -> app
 - `/docs/AI-PIPELINE.md` - 7-step pipeline, all prompt templates
 - `/docs/INTEGRATIONS.md` - Firecrawl and DataForSEO integration patterns
 - `/docs/ARCHITECTURE.md` - System architecture, folder structure, data flows
+
+### Implementation Roadmap (NEW - December 2024)
+- `/docs/IMPLEMENTATION-ROADMAP.md` - **57 sprints** across 16 weeks, detailed tasks with acceptance criteria
+- `/docs/ROADMAP-SUMMARY.md` - Executive overview with timeline, risk matrix, and success criteria
+- `/docs/EXECUTION-ORDER.md` - **Day-by-day schedule** (110 days), daily checklists, milestone validation
+- `/docs/VISUAL-ROADMAP.md` - ASCII diagrams of timeline, dependencies, and sprint distribution
+- `/docs/RECOMMENDATIONS.md` - Strategic guidance, architecture patterns, optimization tips
 
 ### Core Code
 - `/src/lib/mock-data/index.ts` - All mock data (replace in Phase 2)
@@ -330,6 +449,92 @@ Current mock data in `/src/lib/mock-data/index.ts`:
 
 ---
 
+## Risk Areas & Mitigations
+
+### High-Risk Areas (Prototype First)
+
+| Risk Area | Why It's Risky | Mitigation Strategy |
+|-----------|----------------|---------------------|
+| **Supabase Vault** | Complex encryption/decryption, edge cases | Prototype in Week 1, add comprehensive error handling |
+| **AI Streaming** | Provider differences, token tracking during stream | Test with all 3 providers early, build abstraction layer |
+| **Firecrawl Costs** | Crawling large sites expensive | Implement incremental crawling from Day 1, smart URL filtering |
+| **RLS Complexity** | Data leakage risk, performance impact | Profile queries early, extensive multi-tenant isolation testing |
+
+### Medium-Risk Areas
+
+| Risk Area | Mitigation |
+|-----------|------------|
+| AI output quality | Dedicated prompt engineering time, test with real brand content |
+| Token costs | Cost estimation before generation, user budget controls |
+| DataForSEO expenses | Aggressive caching (30-day TTL), batch keyword lookups |
+| Pattern detection false positives | Allow rule customization, confidence thresholds |
+
+### Cross-Cutting Concerns
+
+These span multiple phases and need attention throughout:
+1. **Testing** - Incremental, not at the end. Write tests alongside features.
+2. **Documentation** - Update API docs as endpoints are built
+3. **Security** - Weekly security checklist reviews
+4. **Performance** - Profile database queries regularly
+
+---
+
+## GitHub Issue Tracking
+
+### All Issues (#1-#24)
+
+| Phase | Issues | Description |
+|-------|--------|-------------|
+| Phase 2 | #1, #2, #3, #4, #5, #19, #20 | Supabase, migrations, RLS, auth, data layer, invitations |
+| Phase 3 | #6, #7, #8, #9, #12 | AI integration, BYOK, generation, humanization, brand discovery |
+| Phase 4 | #10, #11, #13, #14 | External APIs, Firecrawl, DataForSEO, cross-linking |
+| Phase 5 | #15, #16, #17, #18, #21, #22, #23, #24 | Polish, editor, testing, security, monitoring, deployment |
+
+### New Issues Created (#19-#24) - December 10, 2024
+
+| Issue | Title | Phase |
+|-------|-------|-------|
+| #19 | Create Supabase migration files from schema documentation | Phase 2 |
+| #20 | Implement team invitation system with email notifications | Phase 2 |
+| #21 | Integrate Tiptap rich text editor for article content | Phase 5 |
+| #22 | Set up monitoring and observability infrastructure | Phase 5 |
+| #23 | Set up comprehensive testing infrastructure | Cross-cutting |
+| #24 | Conduct security audit and implement hardening measures | Phase 5 |
+
+### Issues Updated with Detailed Checklists
+
+- **#5 (Data Layer)**: Updated with entity-by-entity breakdown (teams, brands, articles)
+- **#8 (Content Generation)**: Updated with sub-tasks for generation, streaming, SEO integration
+
+### Project Board
+Issues are organized on the "Content Beagle Project" board (ID: PVT_kwHOAr5cW84BKU7C).
+
+---
+
+## Agent Analysis Summary (December 10, 2024)
+
+### Product Manager Agent Findings
+- Created 57 sprints across 16 weeks
+- Identified optimal execution order (110 days)
+- Recommended 7-batch approach to minimize context switching
+- Flagged parallel work opportunities after Phase 2
+
+### Project Orchestrator Agent Findings
+- Gap analysis: 6 areas not covered by current issues
+- Issue decomposition: #5 and #8 should be split
+- Cross-cutting concerns: testing, documentation, security
+- Risk assessment: Vault complexity, AI quality, external API costs
+- Agent allocation: Can use 2-3 developers in parallel after Week 4
+
+### Implementation Recommendations
+1. **Don't rush RLS policies** - Security is paramount for multi-tenancy
+2. **Invest in prompt engineering** - Core product quality depends on it
+3. **Implement caching aggressively** - Control external API costs
+4. **Test continuously** - Not just at the end
+5. **Document as you go** - Future sessions need context
+
+---
+
 ## Known Constraints & Gotchas
 
 ### Current Limitations (Phase 1)
@@ -343,11 +548,13 @@ Current mock data in `/src/lib/mock-data/index.ts`:
 - Tailwind CSS v4 (new syntax)
 - All shadcn/ui components already installed
 
-### Future Considerations
-- Content calendar and scheduling (out of MVP scope)
-- WordPress/CMS integrations (future)
-- Collaborative real-time editing (future)
-- Custom AI model fine-tuning (future)
+### Future Considerations (Post-MVP)
+- Content calendar and scheduling
+- WordPress/CMS integrations
+- Collaborative real-time editing
+- Custom AI model fine-tuning
+- White-label option for agencies
+- Content performance analytics
 
 ---
 
@@ -393,17 +600,42 @@ code docs/                     # Documentation
 
 ## Session Context Protocol
 
-When starting a new session:
-1. Review this CLAUDE.md for current state
-2. Check `/docs/` for detailed specifications
-3. Reference mock data structure when implementing real data
-4. Follow established component patterns in existing code
+### When Starting a New Session:
+1. Review this CLAUDE.md for current state and recent progress
+2. Check the Implementation Timeline section for what's next
+3. Review `/docs/EXECUTION-ORDER.md` for day-by-day tasks
+4. Check GitHub issues for latest status: `gh issue list`
+5. Reference mock data structure when implementing real data
+6. Follow established component patterns in existing code
 
-When completing work:
-1. Update this file if architectural decisions change
-2. Document any gotchas discovered
-3. Note progress on phase completion
+### When Completing Work:
+1. Update sprint checkboxes in this file
+2. Mark GitHub issues as complete when milestones finish
+3. Document any gotchas discovered in the appropriate section
+4. Note architectural decisions that deviate from the plan
+5. Update risk areas if new risks discovered
+
+### Quick Status Check Commands:
+```bash
+# View all issues
+gh issue list
+
+# View project board
+gh project list
+
+# Check specific issue
+gh issue view <number>
+
+# Run dev server
+npm run dev
+```
+
+### Key Planning Documents:
+- **Day-by-day plan**: `/docs/EXECUTION-ORDER.md`
+- **Detailed sprints**: `/docs/IMPLEMENTATION-ROADMAP.md`
+- **Risk guidance**: `/docs/RECOMMENDATIONS.md`
+- **Executive summary**: `/docs/ROADMAP-SUMMARY.md`
 
 ---
 
-*Last Updated: December 2024 - Phase 1 Complete*
+*Last Updated: December 10, 2024 - Planning Milestone Complete, Phase 2 Ready to Start*
