@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Repository**: https://github.com/jotapess/contentbeagle
 
-### Current Status: Phase 1 COMPLETE - Phase 2 Ready to Start
+### Current Status: Phase 1 COMPLETE - Phase 2 Detailed Planning Complete
 
 **Phase 1 (Frontend with Mock Data)** - COMPLETED December 2024
 - 27 routes built with Next.js 14+ App Router
@@ -23,6 +23,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Detailed day-by-day execution order (110 days)
 - Risk analysis and mitigation strategies documented
 - GitHub issues #1-#18 created and organized on project board
+
+**Phase 2 Detailed Planning** - COMPLETED December 10, 2024
+- Product Manager created granular sub-task breakdown for all Phase 2 issues
+- 7 active Phase 2 issues with 62+ sub-tasks defined
+- Critical path established: #2 -> #3 -> #4 -> #5 -> Phase 3+
+- Total effort: 17 days (3-4 weeks with 1 developer)
 
 ---
 
@@ -195,35 +201,231 @@ After Phase 2 complete (Week 4):
 - [x] Mock data for all entities
 - [x] shadcn/ui components integrated
 
-### Phase 2: Supabase Integration (Weeks 1-4) - NEXT
-**GitHub Issues**: #1, #2, #3, #4, #5
+### Phase 2: Supabase Integration (Weeks 1-4) - READY TO START
+**GitHub Issues**: #1 (Epic), #2, #3, #4, #5, #20, #25, #26
+**Issue #19**: CLOSED (merged into #2 - duplicate of migration work)
 
-**Milestone 2.1 - Database Foundation** (Week 1):
-- [ ] Sprint 2.1.1: Supabase project setup
-- [ ] Sprint 2.1.2: Core multi-tenancy tables (teams, team_members, profiles)
-- [ ] Sprint 2.1.3: Brand & content tables (8 tables)
-- [ ] Sprint 2.1.4: Crawling & AI tables (13 tables)
-- [ ] Sprint 2.1.5: Indexes & performance
+#### Development Workflow
+**IMPORTANT**: All Phase 2 development is tied to individual GitHub issues. Before starting work:
+1. Check the relevant GitHub issue for the complete sub-task checklist
+2. Update issue checkboxes as tasks are completed
+3. Reference the issue number in commit messages
 
-**Milestone 2.2 - Row-Level Security** (Week 2):
-- [ ] Sprint 2.2.1: RLS helper functions (is_team_member, has_team_role)
-- [ ] Sprint 2.2.2: Core table RLS policies
-- [ ] Sprint 2.2.3: Brand & article RLS policies
-- [ ] Sprint 2.2.4: API keys & usage RLS
+---
 
-**Milestone 2.3 - Authentication** (Weeks 2-3):
-- [ ] Sprint 2.3.1: Auth configuration (email, Google, GitHub)
-- [ ] Sprint 2.3.2: Supabase client setup
-- [ ] Sprint 2.3.3: Auth UI pages
-- [ ] Sprint 2.3.4: Protected routes & middleware
+#### Issue #2: Database Migrations (2 days) - CRITICAL PATH START
+**8 sub-tasks defined** | Blocks: #3, #4, #5
 
-**Milestone 2.4 - Data Migration** (Weeks 3-4):
-- [ ] Sprint 2.4.1: Type generation & base queries
-- [ ] Sprint 2.4.2: Team & user data migration
-- [ ] Sprint 2.4.3: Brand data migration
-- [ ] Sprint 2.4.4: Article data migration (XL - includes version history, workflow)
-- [ ] Sprint 2.4.5: AI rules & settings data
-- [ ] Sprint 2.4.6: Testing & validation
+**Migration Files to Create:**
+1. `01_core_tables.sql` - teams, team_members, profiles
+2. `02_brand_content_tables.sql` - brands, brand_profiles, articles, article_versions, comments, article_workflow_log
+3. `03_crawl_ai_tables.sql` - crawled_pages, crawl_jobs, ai_pattern_rules, user_api_keys (Vault)
+4. `04_seo_usage_tables.sql` - keyword_research, ai_usage_log, seo_usage_log
+5. `05_indexes_fts.sql` - performance indexes, full-text search
+
+**Done Criteria:**
+- [ ] All 21 tables created with foreign keys and constraints
+- [ ] Performance indexes on frequently queried columns
+- [ ] Full-text search on articles.content and crawled_pages.content
+- [ ] Schema matches /docs/DATABASE.md exactly
+
+---
+
+#### Issue #3: Row-Level Security (3 days) - CRITICAL PATH
+**13 sub-tasks defined** | Requires: #2 | Blocks: #4, #5
+
+**RLS Helper Functions:**
+1. `is_team_member(team_id)` - check team membership
+2. `has_team_role(team_id, roles[])` - check role permissions
+3. `get_user_teams()` - return user's team list
+
+**RLS Policies for All 21 Tables:**
+- teams, team_members, profiles (core)
+- brands, brand_profiles, brand_competitors
+- articles, article_versions, article_workflow_log, article_comments
+- crawl_jobs, crawled_pages
+- ai_pattern_rules, ai_pattern_rules_global
+- user_api_keys, api_providers
+- ai_usage_log, seo_usage_log, crawl_usage_log
+- keyword_research, keyword_cache
+
+**Role Permissions Hierarchy:**
+```
+owner > admin > editor > viewer
+```
+
+**Done Criteria:**
+- [ ] RLS enabled on all 21 tables
+- [ ] Team isolation enforced (no cross-team data leakage)
+- [ ] Role-based permissions working for all CRUD operations
+- [ ] /docs/RLS-POLICIES.md documentation created
+
+---
+
+#### Issue #4: Authentication (3 days) - CRITICAL PATH
+**12 sub-tasks defined** | Requires: #2, #3 | Blocks: #5
+
+**Auth Methods:**
+- Email/password authentication
+- Google OAuth (requires Google Cloud Console setup)
+- GitHub OAuth (requires GitHub App setup)
+
+**Implementation Components:**
+- `/src/lib/supabase/client.ts` - createBrowserClient()
+- `/src/lib/supabase/server.ts` - createServerClient()
+- `/src/middleware.ts` - auth middleware for /dashboard routes
+- `/src/contexts/auth-context.tsx` - AuthProvider + useAuth hook
+- `/src/app/auth/callback/route.ts` - OAuth callback handler
+
+**Done Criteria:**
+- [ ] All 3 auth methods working
+- [ ] Middleware protecting /dashboard routes
+- [ ] Sessions persist across page reloads
+- [ ] Profile auto-created on first sign-up
+- [ ] Password reset flow working
+
+---
+
+#### Issue #5: Data Layer (5 days) - LARGEST EFFORT - CRITICAL PATH
+**15 sub-tasks defined** | Requires: #2, #3, #4 | Blocks: Phase 3+
+
+**Server Actions to Implement:**
+- Teams: createTeam, updateTeam, listTeams, addMember, removeMember
+- Profiles: getProfile, updateProfile
+- Brands: createBrand, updateBrand, deleteBrand, listBrands, getBrandWithProfile
+- Articles: createArticle, updateArticle, deleteArticle, listArticles, updateStatus, createVersion, getVersionHistory
+- Crawled Pages: listCrawledPages, searchCrawledPages (full-text search)
+- AI Rules: listRules, createRule, updateRule, deleteRule, toggleRule
+- API Keys (Vault): storeApiKey, getApiKey, deleteApiKey, testApiKey
+- Usage: logAiUsage, logSeoUsage, getUsageStats
+- SEO: listKeywordResearch, saveKeywordData
+
+**Key Features:**
+- Auto-save: Save article draft every 30 seconds
+- Versioning: New version on publish, restore previous versions
+- Vault encryption: API keys encrypted at rest
+- Zod validation: All inputs validated before database operations
+
+**Done Criteria:**
+- [ ] Zero imports from mock-data.ts anywhere in codebase
+- [ ] All CRUD operations working for all entities
+- [ ] Auto-save and versioning implemented
+- [ ] Vault encryption working for API keys
+- [ ] Full-text search working on articles and crawled pages
+
+---
+
+#### Issue #20: Team Invitations (2.5 days) - PARALLEL WORK
+**12 sub-tasks defined** | Requires: #2, #3, #4 | Can run parallel after #4
+
+**Email Integration:**
+- Resend email service integration
+- Branded HTML email templates
+
+**Invitation Flow:**
+1. Admin invites member by email
+2. Secure token generated, stored in `team_invitations` table
+3. Email sent with accept/decline links
+4. User clicks accept -> joins team, invitation marked accepted
+5. Tokens expire after 7 days
+
+**New Routes:**
+- `/app/invite/accept/[token]/page.tsx`
+- `/app/invite/decline/[token]/page.tsx`
+
+**Done Criteria:**
+- [ ] Invitation emails sent successfully
+- [ ] Accept/decline flow working
+- [ ] Expired invitations handled gracefully
+- [ ] Admin notification on acceptance
+
+---
+
+#### Issue #25: Seed Data (0.5 days)
+**7 sub-tasks defined** | Requires: #2 | No blockers
+
+**Data to Seed:**
+- 5 API Providers: OpenAI, Anthropic, Google AI, Firecrawl, DataForSEO
+- 12 Global AI Pattern Rules: delve, in conclusion, leverage, robust, comprehensive, utilize, it's important to note, in today's digital landscape, revolutionary, game-changer, cutting-edge, seamlessly
+
+**Done Criteria:**
+- [ ] Migration `18_seed_data.sql` runs without errors
+- [ ] Teams can see global rules in AI Rules page
+
+---
+
+#### Issue #26: Backup Procedures (1 day)
+**8 sub-tasks defined** | Requires: #2 | No blockers
+
+**Deliverables:**
+- `/docs/DATABASE-BACKUP.md` - backup and restore procedures
+- `/docs/MIGRATION-ROLLBACK.md` - rollback templates
+- `/scripts/backup-db.sh` - manual backup script
+- Emergency recovery procedure tested
+
+---
+
+#### Phase 2 Critical Path
+```
+#2 (Database - 2 days)
+  |
+  v
+#3 (RLS - 3 days)
+  |
+  v
+#4 (Auth - 3 days) -----> #20 (Invitations - 2.5 days, parallel)
+  |
+  v
+#5 (Data Layer - 5 days)
+  |
+  v
+Phase 3 (AI Integration)
+```
+
+**Parallel Work (after #4 completes):** #20, #25, #26
+**Total Effort:** 17 days (3-4 weeks with 1 developer)
+
+---
+
+#### Phase 2 Done Criteria Summary (30+ checkboxes in Issue #1)
+
+**Database:**
+- 21 tables created with all FKs and constraints
+- Performance indexes on all frequently queried columns
+- Full-text search on articles.content and crawled_pages.content
+
+**Security:**
+- RLS enabled on all 21 tables
+- Team isolation verified (no cross-team data leakage)
+- Role-based permissions working (owner > admin > editor > viewer)
+- Vault encryption for API keys
+
+**Authentication:**
+- Email/password, Google OAuth, GitHub OAuth all working
+- Auth middleware protecting /dashboard routes
+- Sessions persisting across page reloads
+- Profile auto-created on sign-up
+
+**Data Layer:**
+- Zero imports from mock-data.ts
+- All CRUD operations working
+- Auto-save (30s) and versioning implemented
+- Zod validation on all inputs
+
+**Team Collaboration:**
+- Invitation emails delivered via Resend
+- Accept/decline flow working with token expiration
+
+---
+
+#### Phase 2 Risk Areas
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| RLS complexity/performance | High | Profile queries early, extensive testing |
+| Vault API key encryption | Medium | Prototype in Week 1, add error handling |
+| OAuth setup complexity | Medium | Follow Supabase docs exactly, test each provider |
+| Migration failures | Low | Test locally first, have rollback ready |
 
 ### Phase 3: AI Provider Integration (Weeks 5-9)
 **GitHub Issues**: #6, #7, #8, #9, #12
@@ -481,30 +683,40 @@ These span multiple phases and need attention throughout:
 
 ## GitHub Issue Tracking
 
-### All Issues (#1-#24)
+### All Issues (#1-#26)
 
 | Phase | Issues | Description |
 |-------|--------|-------------|
-| Phase 2 | #1, #2, #3, #4, #5, #19, #20 | Supabase, migrations, RLS, auth, data layer, invitations |
+| Phase 2 | #1, #2, #3, #4, #5, #20, #25, #26 | Supabase, migrations, RLS, auth, data layer, invitations, seed, backup |
 | Phase 3 | #6, #7, #8, #9, #12 | AI integration, BYOK, generation, humanization, brand discovery |
 | Phase 4 | #10, #11, #13, #14 | External APIs, Firecrawl, DataForSEO, cross-linking |
 | Phase 5 | #15, #16, #17, #18, #21, #22, #23, #24 | Polish, editor, testing, security, monitoring, deployment |
 
-### New Issues Created (#19-#24) - December 10, 2024
+**Note:** Issue #19 was CLOSED as duplicate (merged into #2)
 
-| Issue | Title | Phase |
-|-------|-------|-------|
-| #19 | Create Supabase migration files from schema documentation | Phase 2 |
-| #20 | Implement team invitation system with email notifications | Phase 2 |
-| #21 | Integrate Tiptap rich text editor for article content | Phase 5 |
-| #22 | Set up monitoring and observability infrastructure | Phase 5 |
-| #23 | Set up comprehensive testing infrastructure | Cross-cutting |
-| #24 | Conduct security audit and implement hardening measures | Phase 5 |
+### Phase 2 Issues (Active) - Detailed Planning Complete
 
-### Issues Updated with Detailed Checklists
+| Issue | Title | Effort | Sub-tasks | Dependencies |
+|-------|-------|--------|-----------|--------------|
+| #1 | Phase 2: Supabase Integration (Epic) | - | 30+ done criteria | - |
+| #2 | Database Migrations | 2 days | 8 | None (START HERE) |
+| #3 | RLS Policies | 3 days | 13 | #2 |
+| #4 | Authentication | 3 days | 12 | #2, #3 |
+| #5 | Data Layer | 5 days | 15 | #2, #3, #4 |
+| #20 | Team Invitations | 2.5 days | 12 | #2, #3, #4 |
+| #25 | Seed Data | 0.5 days | 7 | #2 |
+| #26 | Backup Procedures | 1 day | 8 | #2 |
 
-- **#5 (Data Layer)**: Updated with entity-by-entity breakdown (teams, brands, articles)
-- **#8 (Content Generation)**: Updated with sub-tasks for generation, streaming, SEO integration
+### Issues Updated December 10, 2024
+
+- **#1 (Phase 2 Epic)**: Updated with complete done criteria checklist (30+ items), dependency graph, timeline
+- **#2 (Database)**: Updated with 5 migration file breakdown, 8 sub-tasks
+- **#3 (RLS)**: Updated with 3 helper functions, policies for all 21 tables, 13 sub-tasks
+- **#4 (Auth)**: Updated with 3 auth methods, implementation files, 12 sub-tasks
+- **#5 (Data Layer)**: Updated with all server actions list, key features, 15 sub-tasks
+- **#20 (Invitations)**: Updated with email flow, new routes, 12 sub-tasks
+- **#25 (Seed Data)**: NEW - seed API providers and global AI rules
+- **#26 (Backup)**: NEW - documentation and rollback procedures
 
 ### Project Board
 Issues are organized on the "Content Beagle Project" board (ID: PVT_kwHOAr5cW84BKU7C).
@@ -513,11 +725,20 @@ Issues are organized on the "Content Beagle Project" board (ID: PVT_kwHOAr5cW84B
 
 ## Agent Analysis Summary (December 10, 2024)
 
-### Product Manager Agent Findings
+### Product Manager Agent Findings - Initial Planning
 - Created 57 sprints across 16 weeks
 - Identified optimal execution order (110 days)
 - Recommended 7-batch approach to minimize context switching
 - Flagged parallel work opportunities after Phase 2
+
+### Product Manager Agent Findings - Phase 2 Detail Planning
+- Decomposed 7 Phase 2 issues into 62+ granular sub-tasks
+- Created comprehensive done criteria for Phase 2 (30+ checkboxes)
+- Established critical path: #2 -> #3 -> #4 -> #5
+- Identified parallel work opportunities: #20, #25, #26 after #4
+- Created 2 new issues: #25 (Seed Data), #26 (Backup Procedures)
+- Closed #19 as duplicate (merged into #2)
+- Calculated total Phase 2 effort: 17 days (3-4 weeks)
 
 ### Project Orchestrator Agent Findings
 - Gap analysis: 6 areas not covered by current issues
@@ -532,6 +753,7 @@ Issues are organized on the "Content Beagle Project" board (ID: PVT_kwHOAr5cW84B
 3. **Implement caching aggressively** - Control external API costs
 4. **Test continuously** - Not just at the end
 5. **Document as you go** - Future sessions need context
+6. **Follow the critical path** - Database -> RLS -> Auth -> Data Layer (no shortcuts)
 
 ---
 
@@ -602,18 +824,26 @@ code docs/                     # Documentation
 
 ### When Starting a New Session:
 1. Review this CLAUDE.md for current state and recent progress
-2. Check the Implementation Timeline section for what's next
+2. Check the Phase 2 section for issue details and dependencies
 3. Review `/docs/EXECUTION-ORDER.md` for day-by-day tasks
 4. Check GitHub issues for latest status: `gh issue list`
 5. Reference mock data structure when implementing real data
 6. Follow established component patterns in existing code
 
+### When Starting Phase 2 Work:
+1. Check which issue to work on based on critical path: #2 -> #3 -> #4 -> #5
+2. Review the GitHub issue for complete sub-task checklist: `gh issue view <number>`
+3. Update issue checkboxes as tasks are completed
+4. Reference /docs/DATABASE.md for schema details
+5. Test RLS policies thoroughly before moving to next issue
+
 ### When Completing Work:
-1. Update sprint checkboxes in this file
-2. Mark GitHub issues as complete when milestones finish
+1. Update GitHub issue checkboxes (primary source of truth)
+2. Mark GitHub issues as complete when all sub-tasks done
 3. Document any gotchas discovered in the appropriate section
 4. Note architectural decisions that deviate from the plan
 5. Update risk areas if new risks discovered
+6. For Phase 2: verify done criteria in Issue #1 (Phase 2 Epic)
 
 ### Quick Status Check Commands:
 ```bash
@@ -638,4 +868,4 @@ npm run dev
 
 ---
 
-*Last Updated: December 10, 2024 - Planning Milestone Complete, Phase 2 Ready to Start*
+*Last Updated: December 10, 2024 - Phase 2 Detailed Planning Complete (62+ sub-tasks, 7 issues, 17 days estimated)*
