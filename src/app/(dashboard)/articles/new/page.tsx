@@ -10,10 +10,9 @@ import {
   Search,
   Lightbulb,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 
-import type { ArticleInputType } from "@/types";
-import { mockBrands } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,8 +26,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useAIGeneration } from "@/hooks/use-ai-generation";
+import { getBrands, createArticle, updateArticleContent, getProfile } from "@/lib/actions";
 
+type ArticleInputType = "bullets" | "draft" | "research" | "topic_only";
 type TargetLength = "short" | "medium" | "long";
+
+interface Brand {
+  id: string;
+  name: string;
+  status: string | null;
+  target_audience: string | null;
+}
 
 interface InputTypeOption {
   value: ArticleInputType;
@@ -82,36 +92,100 @@ Example: "10 Ways to Improve Customer Retention" or "The Complete Guide to Remot
 ];
 
 const lengthOptions: { value: TargetLength; label: string; description: string }[] = [
-  { value: "short", label: "Short", description: "500-1,000 words" },
-  { value: "medium", label: "Medium", description: "1,000-2,000 words" },
-  { value: "long", label: "Long", description: "2,000+ words" },
+  { value: "short", label: "Short", description: "800-1,200 words" },
+  { value: "medium", label: "Medium", description: "1,500-2,500 words" },
+  { value: "long", label: "Long", description: "3,000+ words" },
 ];
 
 export default function NewArticlePage() {
   const router = useRouter();
-  const [isGenerating, setIsGenerating] = React.useState(false);
+  const { generate, isGenerating, generatedContent, error: generationError, abort } = useAIGeneration();
+
+  const [brands, setBrands] = React.useState<Brand[]>([]);
+  const [teamId, setTeamId] = React.useState<string | null>(null);
+  const [isLoadingBrands, setIsLoadingBrands] = React.useState(true);
 
   const [brandId, setBrandId] = React.useState<string>("");
   const [inputType, setInputType] = React.useState<ArticleInputType>("bullets");
   const [content, setContent] = React.useState("");
+  const [topic, setTopic] = React.useState("");
   const [targetAudience, setTargetAudience] = React.useState("");
   const [targetLength, setTargetLength] = React.useState<TargetLength>("medium");
   const [callToAction, setCallToAction] = React.useState("");
 
   const selectedInputType = inputTypeOptions.find((o) => o.value === inputType);
-  const selectedBrand = mockBrands.find((b) => b.id === brandId);
-  const readyBrands = mockBrands.filter((b) => b.status === "ready");
+  const selectedBrand = brands.find((b) => b.id === brandId);
+  const readyBrands = brands.filter((b) => b.status === "ready");
 
-  const canGenerate = brandId && content.trim();
+  const canGenerate = brandId && (content.trim() || inputType === "topic_only") && topic.trim();
+
+  // Load brands on mount
+  React.useEffect(() => {
+    async function loadData() {
+      const { data: profile } = await getProfile();
+      if (!profile?.default_team_id) {
+        setIsLoadingBrands(false);
+        return;
+      }
+
+      setTeamId(profile.default_team_id);
+
+      const { data: brandsData } = await getBrands(profile.default_team_id);
+      if (brandsData) {
+        setBrands(brandsData);
+      }
+      setIsLoadingBrands(false);
+    }
+    loadData();
+  }, []);
 
   async function handleGenerate() {
-    if (!canGenerate) return;
+    if (!canGenerate || !teamId) return;
 
-    setIsGenerating(true);
+    try {
+      const generatedText = await generate({
+        brandId,
+        inputType,
+        content,
+        topic,
+        targetAudience: targetAudience || selectedBrand?.target_audience || "General audience",
+        articleLength: targetLength,
+        cta: callToAction || undefined,
+      });
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Extract title from generated content (first H1)
+      const titleMatch = generatedText.match(/^#\s+(.+)$/m);
+      const title = titleMatch ? titleMatch[1] : topic;
 
-    router.push("/articles/article-1");
+      // Create the article in the database
+      const { data: article, error: createError } = await createArticle({
+        teamId,
+        brandId,
+        title,
+        inputType,
+        originalInput: content,
+        targetAudience: targetAudience || selectedBrand?.target_audience || undefined,
+        targetLength,
+        callToAction: callToAction || undefined,
+      });
+
+      if (createError || !article) {
+        console.error("Failed to create article:", createError);
+        return;
+      }
+
+      // Save the generated content
+      await updateArticleContent(article.id, {
+        title,
+        content: generatedText,
+        changeSummary: "Initial AI generation",
+      });
+
+      // Navigate to the article editor
+      router.push(`/articles/${article.id}`);
+    } catch (err) {
+      console.error("Generation failed:", err);
+    }
   }
 
   return (
@@ -130,6 +204,13 @@ export default function NewArticlePage() {
         </div>
       </div>
 
+      {generationError && (
+        <Alert variant="destructive">
+          <AlertCircle className="size-4" />
+          <AlertDescription>{generationError}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-[1fr,320px]">
         <div className="space-y-6">
           <Card>
@@ -141,23 +222,41 @@ export default function NewArticlePage() {
                 <Label htmlFor="brand">
                   Brand <span className="text-destructive">*</span>
                 </Label>
-                <Select value={brandId} onValueChange={setBrandId}>
+                <Select value={brandId} onValueChange={setBrandId} disabled={isLoadingBrands}>
                   <SelectTrigger id="brand">
-                    <SelectValue placeholder="Select a brand" />
+                    <SelectValue placeholder={isLoadingBrands ? "Loading brands..." : "Select a brand"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {readyBrands.map((brand) => (
-                      <SelectItem key={brand.id} value={brand.id}>
-                        {brand.name}
+                    {readyBrands.length === 0 ? (
+                      <SelectItem value="_none" disabled>
+                        No brands available. Create a brand first.
                       </SelectItem>
-                    ))}
+                    ) : (
+                      readyBrands.map((brand) => (
+                        <SelectItem key={brand.id} value={brand.id}>
+                          {brand.name}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
-                {selectedBrand?.targetAudience && (
+                {selectedBrand?.target_audience && (
                   <p className="text-sm text-muted-foreground">
-                    Target audience: {selectedBrand.targetAudience}
+                    Target audience: {selectedBrand.target_audience}
                   </p>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="topic">
+                  Topic / Title <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="topic"
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  placeholder="e.g., 10 Ways to Improve Customer Retention"
+                />
               </div>
 
               <div className="space-y-3">
@@ -209,8 +308,8 @@ export default function NewArticlePage() {
             <CardContent>
               <div className="space-y-2">
                 <Label htmlFor="content">
-                  {selectedInputType?.label ?? "Content"}{" "}
-                  <span className="text-destructive">*</span>
+                  {selectedInputType?.label ?? "Content"}
+                  {inputType !== "topic_only" && <span className="text-destructive"> *</span>}
                 </Label>
                 <Textarea
                   id="content"
@@ -218,15 +317,35 @@ export default function NewArticlePage() {
                   onChange={(e) => setContent(e.target.value)}
                   placeholder={selectedInputType?.placeholder}
                   className="min-h-[240px] font-mono text-sm"
+                  disabled={inputType === "topic_only"}
                 />
                 <p className="text-sm text-muted-foreground">
-                  {content.length > 0
-                    ? `${content.split(/\s+/).filter(Boolean).length} words`
-                    : "Enter your content above"}
+                  {inputType === "topic_only"
+                    ? "Content will be generated from the topic above"
+                    : content.length > 0
+                      ? `${content.split(/\s+/).filter(Boolean).length} words`
+                      : "Enter your content above"}
                 </p>
               </div>
             </CardContent>
           </Card>
+
+          {/* Show generation preview */}
+          {isGenerating && generatedContent && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Loader2 className="size-4 animate-spin" />
+                  Generating...
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="prose prose-sm max-h-[400px] overflow-y-auto dark:prose-invert">
+                  <pre className="whitespace-pre-wrap font-sans">{generatedContent}</pre>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-6">
@@ -241,7 +360,7 @@ export default function NewArticlePage() {
                   id="targetAudience"
                   value={targetAudience}
                   onChange={(e) => setTargetAudience(e.target.value)}
-                  placeholder="e.g., Small business owners"
+                  placeholder={selectedBrand?.target_audience || "e.g., Small business owners"}
                 />
                 <p className="text-xs text-muted-foreground">
                   Override the brand default if needed
@@ -287,25 +406,44 @@ export default function NewArticlePage() {
             </CardContent>
           </Card>
 
-          <Button
-            size="lg"
-            className="w-full"
-            disabled={!canGenerate || isGenerating}
-            onClick={handleGenerate}
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Generating Article...
-              </>
-            ) : (
-              "Generate Article"
+          <div className="space-y-2">
+            <Button
+              size="lg"
+              className="w-full"
+              disabled={!canGenerate || isGenerating}
+              onClick={handleGenerate}
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Generating Article...
+                </>
+              ) : (
+                "Generate Article"
+              )}
+            </Button>
+
+            {isGenerating && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={abort}
+              >
+                Cancel Generation
+              </Button>
             )}
-          </Button>
+          </div>
 
           {!brandId && (
             <p className="text-center text-sm text-muted-foreground">
               Select a brand to continue
+            </p>
+          )}
+
+          {brandId && !topic.trim() && (
+            <p className="text-center text-sm text-muted-foreground">
+              Enter a topic to continue
             </p>
           )}
         </div>

@@ -67,3 +67,13 @@ export {
 } from "./api-keys";
 
 export type { UserAPIKey } from "./api-keys";
+
+// AI Usage
+export {
+  trackAIUsage,
+  getTeamUsage,
+  getArticleUsage,
+  estimateCost,
+} from "./ai-usage";
+
+export type { AIUsageLog, UsageData } from "./ai-usage";
