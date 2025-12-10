@@ -53,3 +53,17 @@ export {
 } from "./profile";
 
 export type { Profile } from "./profile";
+
+// API Keys
+export {
+  getAPIKeys,
+  storeAPIKeySimple,
+  deleteAPIKey,
+  toggleAPIKeyStatus,
+  getDecryptedAPIKeys,
+  updateKeyLastUsed,
+  getAvailableProviders,
+  PROVIDER_MAP,
+} from "./api-keys";
+
+export type { UserAPIKey } from "./api-keys";

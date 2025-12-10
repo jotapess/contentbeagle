@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import type { Tables, TablesUpdate } from "@/types/database";
+import type { Tables, TablesUpdate, Json } from "@/types/database";
 
 export type Profile = Tables<"profiles">;
 
@@ -76,8 +76,8 @@ export async function updatePreferences(preferences: Record<string, unknown>) {
     .eq("id", user.id)
     .single();
 
-  const currentPrefs = (profile?.preferences as Record<string, unknown>) || {};
-  const newPrefs = { ...currentPrefs, ...preferences };
+  const currentPrefs = (profile?.preferences as Record<string, Json>) || {};
+  const newPrefs = { ...currentPrefs, ...preferences } as Json;
 
   return updateProfile({ preferences: newPrefs });
 }

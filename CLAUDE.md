@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Repository**: https://github.com/jotapess/contentbeagle
 
-### Current Status: Phase 1 COMPLETE - Phase 2 Detailed Planning Complete
+### Current Status: Phase 1 COMPLETE - Phase 2 COMPLETE
 
 **Phase 1 (Frontend with Mock Data)** - COMPLETED December 2024
 - 27 routes built with Next.js 14+ App Router
@@ -18,17 +18,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Mock data layer for all entities (users, teams, brands, articles, etc.)
 - shadcn/ui components integrated with Tailwind CSS v4
 
-**Planning Milestone** - COMPLETED December 10, 2024
-- Comprehensive implementation roadmap created (57 sprints, 16 weeks)
-- Detailed day-by-day execution order (110 days)
-- Risk analysis and mitigation strategies documented
-- GitHub issues #1-#18 created and organized on project board
+**Phase 2 (Supabase Integration)** - COMPLETED December 10, 2024
+- Issues #2, #3, #4, #5 all CLOSED
+- 7 migration files, 21 tables created in Supabase
+- RLS policies with 5 helper functions for complete team isolation
+- Supabase Auth with client/server/middleware pattern
+- Full data layer with server actions for teams/brands/articles/profile
+- Onboarding flow for new user team creation
+- Latest commit: 8f324d4
 
-**Phase 2 Detailed Planning** - COMPLETED December 10, 2024
-- Product Manager created granular sub-task breakdown for all Phase 2 issues
-- 7 active Phase 2 issues with 62+ sub-tasks defined
-- Critical path established: #2 -> #3 -> #4 -> #5 -> Phase 3+
-- Total effort: 17 days (3-4 weeks with 1 developer)
+**Next Phase: Phase 3 (AI Integration)** - READY TO START
+- GitHub Issues: #6, #7, #8, #9, #12
+- Provider abstraction, content generation, humanization, brand discovery
 
 ---
 
@@ -43,14 +44,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **UI Components** | shadcn/ui + Radix | Headless, accessible |
 | **Forms** | react-hook-form + zod | With @hookform/resolvers |
 | **State** | Zustand | Lightweight global state |
-| **Database** | Supabase (PostgreSQL) | To be integrated Phase 2 |
-| **Auth** | Supabase OAuth | Google, GitHub |
+| **Database** | Supabase (PostgreSQL) | INTEGRATED - 21 tables |
+| **Auth** | Supabase Auth | INTEGRATED - Email/OAuth |
 | **AI** | Vercel AI SDK (BYOK) | OpenAI, Anthropic, Google |
 | **Editor** | Tiptap | To be integrated |
 | **Caching** | Upstash Redis | Serverless |
 | **Crawling** | Firecrawl API | Brand discovery |
 | **SEO Data** | DataForSEO | Keyword opportunities |
 | **Deployment** | Vercel | Optimized for Next.js |
+
+---
+
+## Supabase Project Details
+
+| Property | Value |
+|----------|-------|
+| **Project Ref** | eiowwhicvrtawgotvswt |
+| **URL** | https://eiowwhicvrtawgotvswt.supabase.co |
+| **Region** | (check Supabase dashboard) |
+| **Status** | All migrations applied |
+
+### Database Tables (21 total)
+**Core (3)**: teams, team_members, profiles
+**Brands (3)**: brands, brand_profiles, brand_competitors
+**Content (4)**: articles, article_versions, article_workflow_log, article_comments
+**Crawling (3)**: crawl_jobs, crawled_pages, crawl_usage_log
+**AI (4)**: ai_pattern_rules_global, ai_pattern_rules, ai_usage_log, api_providers
+**API Keys (1)**: user_api_keys
+**SEO (3)**: keyword_research, keyword_cache, seo_usage_log
 
 ---
 
@@ -69,11 +90,11 @@ npm run build
 # Run linting
 npm run lint
 
-# Future: Generate Supabase types
-npm run db:types
+# Generate Supabase types (after schema changes)
+npx supabase gen types typescript --project-id eiowwhicvrtawgotvswt > src/types/database.ts
 
-# Future: Run Supabase migrations
-npm run db:push
+# Push migrations to Supabase
+npx supabase db push --project-ref eiowwhicvrtawgotvswt
 ```
 
 ---
@@ -89,37 +110,51 @@ contentbeagle/
 │   ├── INTEGRATIONS.md            # Firecrawl & DataForSEO patterns
 │   └── ARCHITECTURE.md            # System architecture, folder structure
 │
+├── supabase/                      # [NEW - Phase 2] Database migrations
+│   └── migrations/
+│       ├── 20241210000001_core_tables.sql       # teams, team_members, profiles
+│       ├── 20241210000002_brand_content_tables.sql  # brands, articles, versions
+│       ├── 20241210000003_crawl_ai_tables.sql   # crawling, AI rules, API keys
+│       ├── 20241210000004_seo_tables.sql        # keyword_research, caching
+│       ├── 20241210000005_seed_data.sql         # API providers, global AI rules
+│       ├── 20241210000006_rls_helpers.sql       # RLS helper functions
+│       └── 20241210000007_rls_policies.sql      # Complete RLS policies
+│
 ├── src/
-│   ├── app/                       # Next.js App Router (27 routes)
-│   │   ├── (auth)/               # Public auth pages
+│   ├── app/
+│   │   ├── auth/                              # [NEW - Phase 2]
+│   │   │   └── callback/route.ts             # OAuth callback handler
+│   │   │
+│   │   ├── (auth)/                           # Public auth pages
 │   │   │   ├── login/page.tsx
 │   │   │   ├── signup/page.tsx
 │   │   │   ├── forgot-password/page.tsx
 │   │   │   └── layout.tsx
 │   │   │
-│   │   ├── (dashboard)/          # Protected dashboard pages
-│   │   │   ├── layout.tsx        # Dashboard layout with sidebar
+│   │   ├── (dashboard)/                      # Protected dashboard pages
+│   │   │   ├── layout.tsx                    # Dashboard layout with sidebar
+│   │   │   ├── onboarding/page.tsx           # [NEW - Phase 2] Team creation
 │   │   │   ├── dashboard/page.tsx
 │   │   │   │
 │   │   │   ├── brands/
-│   │   │   │   ├── page.tsx              # Brands list
-│   │   │   │   ├── new/page.tsx          # Create brand
+│   │   │   │   ├── page.tsx                  # Brands list
+│   │   │   │   ├── new/page.tsx              # Create brand
 │   │   │   │   └── [brandId]/
-│   │   │   │       ├── page.tsx          # Brand overview
-│   │   │   │       ├── profile/page.tsx  # Voice editor
-│   │   │   │       ├── crawled/page.tsx  # Crawled pages
+│   │   │   │       ├── page.tsx              # Brand overview
+│   │   │   │       ├── profile/page.tsx      # Voice editor
+│   │   │   │       ├── crawled/page.tsx      # Crawled pages
 │   │   │   │       └── settings/page.tsx
 │   │   │   │
 │   │   │   ├── articles/
-│   │   │   │   ├── page.tsx              # Articles list
-│   │   │   │   ├── new/page.tsx          # Create article
+│   │   │   │   ├── page.tsx                  # Articles list
+│   │   │   │   ├── new/page.tsx              # Create article
 │   │   │   │   └── [articleId]/
-│   │   │   │       ├── layout.tsx        # Article sub-navigation
-│   │   │   │       ├── page.tsx          # Editor
-│   │   │   │       ├── seo/page.tsx      # SEO optimization
-│   │   │   │       ├── links/page.tsx    # Cross-linking
-│   │   │   │       ├── humanize/page.tsx # AI pattern removal
-│   │   │   │       └── history/page.tsx  # Version history
+│   │   │   │       ├── layout.tsx            # Article sub-navigation
+│   │   │   │       ├── page.tsx              # Editor
+│   │   │   │       ├── seo/page.tsx          # SEO optimization
+│   │   │   │       ├── links/page.tsx        # Cross-linking
+│   │   │   │       ├── humanize/page.tsx     # AI pattern removal
+│   │   │   │       └── history/page.tsx      # Version history
 │   │   │   │
 │   │   │   ├── ai-rules/
 │   │   │   │   ├── page.tsx
@@ -127,30 +162,49 @@ contentbeagle/
 │   │   │   │   └── [ruleId]/page.tsx
 │   │   │   │
 │   │   │   ├── team/
-│   │   │   │   ├── page.tsx              # Members list
+│   │   │   │   ├── page.tsx                  # Members list
 │   │   │   │   ├── invite/page.tsx
 │   │   │   │   └── settings/page.tsx
 │   │   │   │
 │   │   │   └── settings/
-│   │   │       ├── page.tsx              # User settings
-│   │   │       ├── api-keys/page.tsx     # BYOK management
-│   │   │       └── usage/page.tsx        # Usage analytics
+│   │   │       ├── page.tsx                  # User settings
+│   │   │       ├── api-keys/page.tsx         # BYOK management
+│   │   │       └── usage/page.tsx            # Usage analytics
 │   │   │
-│   │   ├── page.tsx              # Landing/redirect
-│   │   └── layout.tsx            # Root layout
+│   │   ├── page.tsx                          # Landing/redirect
+│   │   └── layout.tsx                        # Root layout
 │   │
 │   ├── components/
-│   │   ├── ui/                   # 26 shadcn/ui components
-│   │   ├── layout/               # Sidebar, Header, TeamSwitcher, MobileNav
-│   │   └── features/             # Feature-specific (brands/)
+│   │   ├── ui/                               # 26 shadcn/ui components
+│   │   ├── layout/                           # Sidebar, Header, TeamSwitcher
+│   │   ├── features/                         # Feature-specific components
+│   │   └── providers/                        # [NEW - Phase 2]
+│   │       └── auth-provider.tsx             # AuthContext + useAuth hook
 │   │
 │   ├── lib/
-│   │   ├── mock-data/index.ts    # All mock data for Phase 1
-│   │   └── utils.ts              # cn() utility
+│   │   ├── supabase/                         # [NEW - Phase 2] Supabase clients
+│   │   │   ├── client.ts                     # Browser client (createBrowserClient)
+│   │   │   ├── server.ts                     # Server client + admin client
+│   │   │   └── middleware.ts                 # Session refresh + route protection
+│   │   │
+│   │   ├── actions/                          # [NEW - Phase 2] Server actions
+│   │   │   ├── index.ts                      # Re-exports all actions
+│   │   │   ├── teams.ts                      # Team CRUD, member management
+│   │   │   ├── brands.ts                     # Brand CRUD, profiles, crawled pages
+│   │   │   ├── articles.ts                   # Article CRUD, versioning, workflow
+│   │   │   └── profile.ts                    # User profile management
+│   │   │
+│   │   ├── mock-data/index.ts                # Mock data (to be deprecated)
+│   │   └── utils.ts                          # cn() utility
 │   │
-│   └── types/index.ts            # TypeScript interfaces
+│   ├── types/
+│   │   ├── index.ts                          # TypeScript interfaces
+│   │   └── database.ts                       # [NEW - Phase 2] Supabase types (auto-generated)
+│   │
+│   └── middleware.ts                         # [NEW - Phase 2] Next.js middleware
 │
-├── CLAUDE.md                     # This file
+├── .env.example                              # [NEW - Phase 2] Environment template
+├── CLAUDE.md                                 # This file
 └── package.json
 ```
 
@@ -201,231 +255,87 @@ After Phase 2 complete (Week 4):
 - [x] Mock data for all entities
 - [x] shadcn/ui components integrated
 
-### Phase 2: Supabase Integration (Weeks 1-4) - READY TO START
-**GitHub Issues**: #1 (Epic), #2, #3, #4, #5, #20, #25, #26
-**Issue #19**: CLOSED (merged into #2 - duplicate of migration work)
+### Phase 2: Supabase Integration - COMPLETED December 10, 2024
 
-#### Development Workflow
-**IMPORTANT**: All Phase 2 development is tied to individual GitHub issues. Before starting work:
-1. Check the relevant GitHub issue for the complete sub-task checklist
-2. Update issue checkboxes as tasks are completed
-3. Reference the issue number in commit messages
+**GitHub Issues CLOSED**: #2, #3, #4, #5
 
----
+#### Phase 2 Completion Summary
 
-#### Issue #2: Database Migrations (2 days) - CRITICAL PATH START
-**8 sub-tasks defined** | Blocks: #3, #4, #5
+| Issue | Title | Status | Key Deliverables |
+|-------|-------|--------|------------------|
+| #2 | Database Migrations | CLOSED | 7 migration files, 21 tables |
+| #3 | RLS Policies | CLOSED | 5 helper functions, policies for all tables |
+| #4 | Authentication | CLOSED | Client/server/middleware, AuthProvider |
+| #5 | Data Layer | CLOSED | Server actions for teams/brands/articles/profile |
 
-**Migration Files to Create:**
-1. `01_core_tables.sql` - teams, team_members, profiles
-2. `02_brand_content_tables.sql` - brands, brand_profiles, articles, article_versions, comments, article_workflow_log
-3. `03_crawl_ai_tables.sql` - crawled_pages, crawl_jobs, ai_pattern_rules, user_api_keys (Vault)
-4. `04_seo_usage_tables.sql` - keyword_research, ai_usage_log, seo_usage_log
-5. `05_indexes_fts.sql` - performance indexes, full-text search
+#### Files Created in Phase 2
 
-**Done Criteria:**
-- [ ] All 21 tables created with foreign keys and constraints
-- [ ] Performance indexes on frequently queried columns
-- [ ] Full-text search on articles.content and crawled_pages.content
-- [ ] Schema matches /docs/DATABASE.md exactly
+**Database Migrations** (`/supabase/migrations/`):
+- `20241210000001_core_tables.sql` - teams, team_members, profiles + triggers
+- `20241210000002_brand_content_tables.sql` - brands, brand_profiles, articles, versions, comments
+- `20241210000003_crawl_ai_tables.sql` - crawl_jobs, crawled_pages, ai_pattern_rules, api_providers, user_api_keys
+- `20241210000004_seo_tables.sql` - keyword_research, keyword_cache, seo_usage_log
+- `20241210000005_seed_data.sql` - API providers, global AI rules
+- `20241210000006_rls_helpers.sql` - 5 RLS helper functions
+- `20241210000007_rls_policies.sql` - Complete RLS policies for all 21 tables
 
----
+**Supabase Clients** (`/src/lib/supabase/`):
+- `client.ts` - Browser client using `createBrowserClient<Database>`
+- `server.ts` - Server client + admin client (bypasses RLS)
+- `middleware.ts` - Session refresh, route protection logic
 
-#### Issue #3: Row-Level Security (3 days) - CRITICAL PATH
-**13 sub-tasks defined** | Requires: #2 | Blocks: #4, #5
+**Server Actions** (`/src/lib/actions/`):
+- `teams.ts` - getUserTeams, getTeam, createTeam, updateTeam, deleteTeam, updateMemberRole, removeMember, getOrCreateDefaultTeam
+- `brands.ts` - getBrands, getBrand, createBrand, updateBrand, deleteBrand, getBrandProfile, updateBrandProfile, getCrawledPages, updateBrandStatus
+- `articles.ts` - getArticles, getArticle, createArticle, updateArticle, updateArticleContent, transitionArticleStatus, getArticleVersions, getArticleWorkflowLog, deleteArticle, restoreArticleVersion
+- `profile.ts` - getProfile, updateProfile, setDefaultTeam, updatePreferences
+- `index.ts` - Re-exports all actions and types
 
-**RLS Helper Functions:**
-1. `is_team_member(team_id)` - check team membership
-2. `has_team_role(team_id, roles[])` - check role permissions
-3. `get_user_teams()` - return user's team list
-
-**RLS Policies for All 21 Tables:**
-- teams, team_members, profiles (core)
-- brands, brand_profiles, brand_competitors
-- articles, article_versions, article_workflow_log, article_comments
-- crawl_jobs, crawled_pages
-- ai_pattern_rules, ai_pattern_rules_global
-- user_api_keys, api_providers
-- ai_usage_log, seo_usage_log, crawl_usage_log
-- keyword_research, keyword_cache
-
-**Role Permissions Hierarchy:**
-```
-owner > admin > editor > viewer
-```
-
-**Done Criteria:**
-- [ ] RLS enabled on all 21 tables
-- [ ] Team isolation enforced (no cross-team data leakage)
-- [ ] Role-based permissions working for all CRUD operations
-- [ ] /docs/RLS-POLICIES.md documentation created
-
----
-
-#### Issue #4: Authentication (3 days) - CRITICAL PATH
-**12 sub-tasks defined** | Requires: #2, #3 | Blocks: #5
-
-**Auth Methods:**
-- Email/password authentication
-- Google OAuth (requires Google Cloud Console setup)
-- GitHub OAuth (requires GitHub App setup)
-
-**Implementation Components:**
-- `/src/lib/supabase/client.ts` - createBrowserClient()
-- `/src/lib/supabase/server.ts` - createServerClient()
-- `/src/middleware.ts` - auth middleware for /dashboard routes
-- `/src/contexts/auth-context.tsx` - AuthProvider + useAuth hook
+**Auth Components**:
+- `/src/components/providers/auth-provider.tsx` - AuthContext + useAuth hook
 - `/src/app/auth/callback/route.ts` - OAuth callback handler
+- `/src/middleware.ts` - Next.js middleware for auth
 
-**Done Criteria:**
-- [ ] All 3 auth methods working
-- [ ] Middleware protecting /dashboard routes
-- [ ] Sessions persist across page reloads
-- [ ] Profile auto-created on first sign-up
-- [ ] Password reset flow working
+**Other**:
+- `/src/app/(dashboard)/onboarding/page.tsx` - Team creation for new users
+- `/src/types/database.ts` - Auto-generated Supabase types
+- `/.env.example` - Environment variable template
 
----
+#### RLS Helper Functions
 
-#### Issue #5: Data Layer (5 days) - LARGEST EFFORT - CRITICAL PATH
-**15 sub-tasks defined** | Requires: #2, #3, #4 | Blocks: Phase 3+
+```sql
+-- Check if user is member of a team
+is_team_member(team_id UUID) -> BOOLEAN
 
-**Server Actions to Implement:**
-- Teams: createTeam, updateTeam, listTeams, addMember, removeMember
-- Profiles: getProfile, updateProfile
-- Brands: createBrand, updateBrand, deleteBrand, listBrands, getBrandWithProfile
-- Articles: createArticle, updateArticle, deleteArticle, listArticles, updateStatus, createVersion, getVersionHistory
-- Crawled Pages: listCrawledPages, searchCrawledPages (full-text search)
-- AI Rules: listRules, createRule, updateRule, deleteRule, toggleRule
-- API Keys (Vault): storeApiKey, getApiKey, deleteApiKey, testApiKey
-- Usage: logAiUsage, logSeoUsage, getUsageStats
-- SEO: listKeywordResearch, saveKeywordData
+-- Check if user has specific role(s) in team
+has_team_role(team_id UUID, roles TEXT[]) -> BOOLEAN
 
-**Key Features:**
-- Auto-save: Save article draft every 30 seconds
-- Versioning: New version on publish, restore previous versions
-- Vault encryption: API keys encrypted at rest
-- Zod validation: All inputs validated before database operations
+-- Get all team IDs for current user
+get_user_teams() -> SETOF UUID
 
-**Done Criteria:**
-- [ ] Zero imports from mock-data.ts anywhere in codebase
-- [ ] All CRUD operations working for all entities
-- [ ] Auto-save and versioning implemented
-- [ ] Vault encryption working for API keys
-- [ ] Full-text search working on articles and crawled pages
+-- Get user's role in a specific team
+get_user_role(team_id UUID) -> TEXT
 
----
-
-#### Issue #20: Team Invitations (2.5 days) - PARALLEL WORK
-**12 sub-tasks defined** | Requires: #2, #3, #4 | Can run parallel after #4
-
-**Email Integration:**
-- Resend email service integration
-- Branded HTML email templates
-
-**Invitation Flow:**
-1. Admin invites member by email
-2. Secure token generated, stored in `team_invitations` table
-3. Email sent with accept/decline links
-4. User clicks accept -> joins team, invitation marked accepted
-5. Tokens expire after 7 days
-
-**New Routes:**
-- `/app/invite/accept/[token]/page.tsx`
-- `/app/invite/decline/[token]/page.tsx`
-
-**Done Criteria:**
-- [ ] Invitation emails sent successfully
-- [ ] Accept/decline flow working
-- [ ] Expired invitations handled gracefully
-- [ ] Admin notification on acceptance
-
----
-
-#### Issue #25: Seed Data (0.5 days)
-**7 sub-tasks defined** | Requires: #2 | No blockers
-
-**Data to Seed:**
-- 5 API Providers: OpenAI, Anthropic, Google AI, Firecrawl, DataForSEO
-- 12 Global AI Pattern Rules: delve, in conclusion, leverage, robust, comprehensive, utilize, it's important to note, in today's digital landscape, revolutionary, game-changer, cutting-edge, seamlessly
-
-**Done Criteria:**
-- [ ] Migration `18_seed_data.sql` runs without errors
-- [ ] Teams can see global rules in AI Rules page
-
----
-
-#### Issue #26: Backup Procedures (1 day)
-**8 sub-tasks defined** | Requires: #2 | No blockers
-
-**Deliverables:**
-- `/docs/DATABASE-BACKUP.md` - backup and restore procedures
-- `/docs/MIGRATION-ROLLBACK.md` - rollback templates
-- `/scripts/backup-db.sh` - manual backup script
-- Emergency recovery procedure tested
-
----
-
-#### Phase 2 Critical Path
-```
-#2 (Database - 2 days)
-  |
-  v
-#3 (RLS - 3 days)
-  |
-  v
-#4 (Auth - 3 days) -----> #20 (Invitations - 2.5 days, parallel)
-  |
-  v
-#5 (Data Layer - 5 days)
-  |
-  v
-Phase 3 (AI Integration)
+-- Check if user owns a team
+is_team_owner(team_id UUID) -> BOOLEAN
 ```
 
-**Parallel Work (after #4 completes):** #20, #25, #26
-**Total Effort:** 17 days (3-4 weeks with 1 developer)
+#### Architectural Decisions Made in Phase 2
 
----
+1. **Server-first data fetching**: All data operations use server actions, not client-side fetching
+2. **Type-safe Supabase**: Auto-generated types from Supabase schema ensure type safety
+3. **Onboarding flow**: New users redirected to `/onboarding` to create their first team
+4. **Admin client pattern**: `createAdminClient()` for operations that need to bypass RLS
+5. **Revalidation strategy**: Use `revalidatePath()` after mutations for cache invalidation
+6. **Auth callback flow**: OAuth redirects to `/onboarding` for new users
 
-#### Phase 2 Done Criteria Summary (30+ checkboxes in Issue #1)
+#### Issues NOT Completed (Deferred)
 
-**Database:**
-- 21 tables created with all FKs and constraints
-- Performance indexes on all frequently queried columns
-- Full-text search on articles.content and crawled_pages.content
-
-**Security:**
-- RLS enabled on all 21 tables
-- Team isolation verified (no cross-team data leakage)
-- Role-based permissions working (owner > admin > editor > viewer)
-- Vault encryption for API keys
-
-**Authentication:**
-- Email/password, Google OAuth, GitHub OAuth all working
-- Auth middleware protecting /dashboard routes
-- Sessions persisting across page reloads
-- Profile auto-created on sign-up
-
-**Data Layer:**
-- Zero imports from mock-data.ts
-- All CRUD operations working
-- Auto-save (30s) and versioning implemented
-- Zod validation on all inputs
-
-**Team Collaboration:**
-- Invitation emails delivered via Resend
-- Accept/decline flow working with token expiration
-
----
-
-#### Phase 2 Risk Areas
-
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| RLS complexity/performance | High | Profile queries early, extensive testing |
-| Vault API key encryption | Medium | Prototype in Week 1, add error handling |
-| OAuth setup complexity | Medium | Follow Supabase docs exactly, test each provider |
-| Migration failures | Low | Test locally first, have rollback ready |
+| Issue | Title | Status | Notes |
+|-------|-------|--------|-------|
+| #20 | Team Invitations | OPEN | Requires Resend integration |
+| #25 | Seed Data | PARTIALLY DONE | Providers seeded, rules seeded |
+| #26 | Backup Procedures | OPEN | Documentation task |
 
 ### Phase 3: AI Provider Integration (Weeks 5-9)
 **GitHub Issues**: #6, #7, #8, #9, #12
@@ -541,21 +451,32 @@ draft -> editing -> seo_review -> cross_linking -> humanizing -> polished -> app
 - `/docs/INTEGRATIONS.md` - Firecrawl and DataForSEO integration patterns
 - `/docs/ARCHITECTURE.md` - System architecture, folder structure, data flows
 
-### Implementation Roadmap (NEW - December 2024)
+### Implementation Roadmap
 - `/docs/IMPLEMENTATION-ROADMAP.md` - **57 sprints** across 16 weeks, detailed tasks with acceptance criteria
 - `/docs/ROADMAP-SUMMARY.md` - Executive overview with timeline, risk matrix, and success criteria
 - `/docs/EXECUTION-ORDER.md` - **Day-by-day schedule** (110 days), daily checklists, milestone validation
 - `/docs/VISUAL-ROADMAP.md` - ASCII diagrams of timeline, dependencies, and sprint distribution
 - `/docs/RECOMMENDATIONS.md` - Strategic guidance, architecture patterns, optimization tips
 
-### Core Code
-- `/src/lib/mock-data/index.ts` - All mock data (replace in Phase 2)
-- `/src/types/index.ts` - TypeScript interfaces matching database schema
+### Phase 2 Code (Supabase Integration)
+- `/supabase/migrations/` - All database migrations (7 files)
+- `/src/lib/supabase/client.ts` - Browser client for client components
+- `/src/lib/supabase/server.ts` - Server client + admin client
+- `/src/lib/supabase/middleware.ts` - Session management and route protection
+- `/src/lib/actions/` - Server actions (teams, brands, articles, profile)
+- `/src/components/providers/auth-provider.tsx` - AuthContext + useAuth hook
+- `/src/middleware.ts` - Next.js auth middleware
+- `/src/types/database.ts` - Auto-generated Supabase types
+- `/.env.example` - Environment variable template
+
+### Core UI Code
+- `/src/lib/mock-data/index.ts` - Mock data (being replaced by server actions)
+- `/src/types/index.ts` - TypeScript interfaces
 - `/src/components/layout/` - Sidebar, Header, TeamSwitcher
 - `/src/app/(dashboard)/layout.tsx` - Protected dashboard layout
+- `/src/app/(dashboard)/onboarding/page.tsx` - New user team creation
 
-### Future Implementation
-- `/src/lib/supabase/` - Database client (Phase 2)
+### Future Implementation (Phase 3+)
 - `/src/lib/ai/` - AI service, prompts, provider registry (Phase 3)
 - `/src/lib/services/firecrawl/` - Crawling client (Phase 4)
 - `/src/lib/services/dataforseo/` - SEO data client (Phase 4)
@@ -683,40 +604,39 @@ These span multiple phases and need attention throughout:
 
 ## GitHub Issue Tracking
 
+**Repository**: https://github.com/jotapess/contentbeagle.git
+**Latest Commit**: 8f324d4 (Phase 2 complete)
+
 ### All Issues (#1-#26)
 
-| Phase | Issues | Description |
-|-------|--------|-------------|
-| Phase 2 | #1, #2, #3, #4, #5, #20, #25, #26 | Supabase, migrations, RLS, auth, data layer, invitations, seed, backup |
-| Phase 3 | #6, #7, #8, #9, #12 | AI integration, BYOK, generation, humanization, brand discovery |
-| Phase 4 | #10, #11, #13, #14 | External APIs, Firecrawl, DataForSEO, cross-linking |
-| Phase 5 | #15, #16, #17, #18, #21, #22, #23, #24 | Polish, editor, testing, security, monitoring, deployment |
+| Phase | Issues | Description | Status |
+|-------|--------|-------------|--------|
+| Phase 2 | #2, #3, #4, #5 | Migrations, RLS, auth, data layer | **CLOSED** |
+| Phase 2 | #20, #25, #26 | Invitations, seed, backup | OPEN (deferred) |
+| Phase 3 | #6, #7, #8, #9, #12 | AI integration, BYOK, generation, humanization | **NEXT** |
+| Phase 4 | #10, #11, #13, #14 | External APIs, Firecrawl, DataForSEO | OPEN |
+| Phase 5 | #15, #16, #17, #18, #21, #22, #23, #24 | Polish, editor, testing, security | OPEN |
 
 **Note:** Issue #19 was CLOSED as duplicate (merged into #2)
 
-### Phase 2 Issues (Active) - Detailed Planning Complete
+### Phase 2 Issues - COMPLETED
 
-| Issue | Title | Effort | Sub-tasks | Dependencies |
-|-------|-------|--------|-----------|--------------|
-| #1 | Phase 2: Supabase Integration (Epic) | - | 30+ done criteria | - |
-| #2 | Database Migrations | 2 days | 8 | None (START HERE) |
-| #3 | RLS Policies | 3 days | 13 | #2 |
-| #4 | Authentication | 3 days | 12 | #2, #3 |
-| #5 | Data Layer | 5 days | 15 | #2, #3, #4 |
-| #20 | Team Invitations | 2.5 days | 12 | #2, #3, #4 |
-| #25 | Seed Data | 0.5 days | 7 | #2 |
-| #26 | Backup Procedures | 1 day | 8 | #2 |
+| Issue | Title | Status | Completed |
+|-------|-------|--------|-----------|
+| #2 | Database Migrations | CLOSED | Dec 10, 2024 |
+| #3 | RLS Policies | CLOSED | Dec 10, 2024 |
+| #4 | Authentication | CLOSED | Dec 10, 2024 |
+| #5 | Data Layer | CLOSED | Dec 10, 2024 |
 
-### Issues Updated December 10, 2024
+### Phase 3 Issues - READY TO START
 
-- **#1 (Phase 2 Epic)**: Updated with complete done criteria checklist (30+ items), dependency graph, timeline
-- **#2 (Database)**: Updated with 5 migration file breakdown, 8 sub-tasks
-- **#3 (RLS)**: Updated with 3 helper functions, policies for all 21 tables, 13 sub-tasks
-- **#4 (Auth)**: Updated with 3 auth methods, implementation files, 12 sub-tasks
-- **#5 (Data Layer)**: Updated with all server actions list, key features, 15 sub-tasks
-- **#20 (Invitations)**: Updated with email flow, new routes, 12 sub-tasks
-- **#25 (Seed Data)**: NEW - seed API providers and global AI rules
-- **#26 (Backup)**: NEW - documentation and rollback procedures
+| Issue | Title | Effort | Dependencies |
+|-------|-------|--------|--------------|
+| #6 | AI Provider Abstraction | 3 days | Phase 2 |
+| #7 | BYOK API Key Management | 2 days | #6 |
+| #8 | Content Generation | 5 days | #6, #7 |
+| #9 | AI Pattern Removal (Humanization) | 4 days | #6, #8 |
+| #12 | Brand Voice Discovery | 3 days | #6 |
 
 ### Project Board
 Issues are organized on the "Content Beagle Project" board (ID: PVT_kwHOAr5cW84BKU7C).
@@ -757,13 +677,32 @@ Issues are organized on the "Content Beagle Project" board (ID: PVT_kwHOAr5cW84B
 
 ---
 
+## User Preferences & Workflow
+
+### Commit Preferences
+- **No Claude attribution** in commit messages (no "Generated by Claude" footer)
+- Standard commit message format
+
+### Development Workflow
+1. **PM defines phase** - Product Manager creates comprehensive phase plan
+2. **Document ALL issues** - Create/update GitHub issues with detailed sub-tasks
+3. **Development (issue-by-issue)** - Work through issues in dependency order
+4. **Close issues on completion** - Mark issues closed when all sub-tasks done
+
+### Approach Preferences
+- **Frontend-first with mock data** - Build UI before backend integration
+- **Proactive context preservation** - Update CLAUDE.md after significant work
+- **Server-first data fetching** - Use server actions over client-side fetching
+
+---
+
 ## Known Constraints & Gotchas
 
-### Current Limitations (Phase 1)
-- All data is mock - no persistence
-- No actual authentication
-- No API routes implemented yet
+### Current Limitations (Post Phase 2)
+- Mock data still exists but being replaced by server actions
+- No AI integration yet (Phase 3)
 - Tiptap editor not yet integrated
+- Team invitations not yet implemented (requires Resend)
 
 ### Technical Notes
 - Using Next.js 16 with React 19 (latest)
@@ -824,26 +763,23 @@ code docs/                     # Documentation
 
 ### When Starting a New Session:
 1. Review this CLAUDE.md for current state and recent progress
-2. Check the Phase 2 section for issue details and dependencies
+2. Check GitHub issues for latest status: `gh issue list`
 3. Review `/docs/EXECUTION-ORDER.md` for day-by-day tasks
-4. Check GitHub issues for latest status: `gh issue list`
-5. Reference mock data structure when implementing real data
-6. Follow established component patterns in existing code
+4. Follow established component patterns in existing code
 
-### When Starting Phase 2 Work:
-1. Check which issue to work on based on critical path: #2 -> #3 -> #4 -> #5
+### When Starting Phase 3 Work:
+1. Check which issue to work on based on dependencies: #6 -> #7 -> #8 -> #9 -> #12
 2. Review the GitHub issue for complete sub-task checklist: `gh issue view <number>`
-3. Update issue checkboxes as tasks are completed
-4. Reference /docs/DATABASE.md for schema details
-5. Test RLS policies thoroughly before moving to next issue
+3. Ensure Supabase types are up to date: `npx supabase gen types typescript --project-id eiowwhicvrtawgotvswt > src/types/database.ts`
+4. Reference existing server actions in `/src/lib/actions/` for patterns
+5. Use the established auth patterns in `/src/lib/supabase/`
 
 ### When Completing Work:
 1. Update GitHub issue checkboxes (primary source of truth)
 2. Mark GitHub issues as complete when all sub-tasks done
 3. Document any gotchas discovered in the appropriate section
 4. Note architectural decisions that deviate from the plan
-5. Update risk areas if new risks discovered
-6. For Phase 2: verify done criteria in Issue #1 (Phase 2 Epic)
+5. **Update CLAUDE.md** with phase completion summary (per user preference)
 
 ### Quick Status Check Commands:
 ```bash
@@ -858,6 +794,9 @@ gh issue view <number>
 
 # Run dev server
 npm run dev
+
+# Generate Supabase types
+npx supabase gen types typescript --project-id eiowwhicvrtawgotvswt > src/types/database.ts
 ```
 
 ### Key Planning Documents:
@@ -868,4 +807,4 @@ npm run dev
 
 ---
 
-*Last Updated: December 10, 2024 - Phase 2 Detailed Planning Complete (62+ sub-tasks, 7 issues, 17 days estimated)*
+*Last Updated: December 10, 2024 - Phase 2 COMPLETE (Issues #2, #3, #4, #5 closed, 21 tables, RLS policies, auth, server actions)*

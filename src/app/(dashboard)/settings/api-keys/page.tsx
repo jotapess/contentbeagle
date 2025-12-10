@@ -14,8 +14,6 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-import type { APIProvider, UserAPIKey } from "@/types";
-import { mockAPIKeys } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,9 +39,10 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert";
+import { getAPIKeys, storeAPIKeySimple, deleteAPIKey, getProfile } from "@/lib/actions";
 
 interface ProviderConfig {
-  id: APIProvider;
+  slug: string;
   name: string;
   description: string;
   icon: string;
@@ -51,9 +50,18 @@ interface ProviderConfig {
   keyPrefix?: string;
 }
 
+interface APIKeyData {
+  id: string;
+  providerSlug: string;
+  providerName: string;
+  isActive: boolean;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
 const providers: ProviderConfig[] = [
   {
-    id: "openai",
+    slug: "openai",
     name: "OpenAI",
     description: "GPT-4o for content generation and analysis",
     icon: "O",
@@ -61,7 +69,7 @@ const providers: ProviderConfig[] = [
     keyPrefix: "sk-",
   },
   {
-    id: "anthropic",
+    slug: "anthropic",
     name: "Anthropic",
     description: "Claude for advanced content writing",
     icon: "A",
@@ -69,7 +77,7 @@ const providers: ProviderConfig[] = [
     keyPrefix: "sk-ant-",
   },
   {
-    id: "google",
+    slug: "google",
     name: "Google AI",
     description: "Gemini for research and analysis",
     icon: "G",
@@ -77,7 +85,7 @@ const providers: ProviderConfig[] = [
     keyPrefix: "AIza",
   },
   {
-    id: "firecrawl",
+    slug: "firecrawl",
     name: "Firecrawl",
     description: "Web scraping for brand analysis",
     icon: "F",
@@ -85,20 +93,13 @@ const providers: ProviderConfig[] = [
     keyPrefix: "fc-",
   },
   {
-    id: "dataforseo",
+    slug: "dataforseo",
     name: "DataForSEO",
     description: "SEO data and keyword research",
     icon: "D",
     docsUrl: "https://app.dataforseo.com/api-access",
   },
 ];
-
-function maskApiKey(key: string, prefix?: string): string {
-  if (prefix && key.startsWith(prefix)) {
-    return `${prefix}...${key.slice(-4)}`;
-  }
-  return `...${key.slice(-4)}`;
-}
 
 function ProviderCard({
   provider,
@@ -107,22 +108,17 @@ function ProviderCard({
   onRemoveKey,
 }: {
   provider: ProviderConfig;
-  apiKey: UserAPIKey | undefined;
+  apiKey: APIKeyData | undefined;
   onAddKey: (provider: ProviderConfig) => void;
-  onRemoveKey: (apiKey: UserAPIKey) => void;
+  onRemoveKey: (apiKey: APIKeyData) => void;
 }) {
   const isConnected = !!apiKey && apiKey.isActive;
-  const hasError = apiKey?.lastError;
 
   return (
     <Card
       className={cn(
         "transition-colors",
-        isConnected
-          ? "border-green-200 dark:border-green-900"
-          : hasError
-            ? "border-red-200 dark:border-red-900"
-            : ""
+        isConnected && "border-green-200 dark:border-green-900"
       )}
     >
       <CardHeader className="pb-3">
@@ -151,12 +147,7 @@ function ProviderCard({
               Connected
             </Badge>
           ) : (
-            <Badge
-              variant="secondary"
-              className={cn(hasError && "bg-red-100 text-red-700")}
-            >
-              {hasError ? "Error" : "Not connected"}
-            </Badge>
+            <Badge variant="secondary">Not connected</Badge>
           )}
         </div>
       </CardHeader>
@@ -165,23 +156,14 @@ function ProviderCard({
           <div className="space-y-2">
             <div className="flex items-center justify-between rounded-lg bg-muted p-2">
               <code className="text-sm">
-                {maskApiKey(
-                  `${provider.keyPrefix || ""}mock-key`,
-                  provider.keyPrefix
-                )}
+                {provider.keyPrefix || ""}...****
               </code>
               {apiKey.lastUsedAt && (
                 <span className="text-xs text-muted-foreground">
-                  Last used:{" "}
-                  {new Date(apiKey.lastUsedAt).toLocaleDateString()}
+                  Last used: {new Date(apiKey.lastUsedAt).toLocaleDateString()}
                 </span>
               )}
             </div>
-            {hasError && (
-              <p className="text-xs text-red-600 dark:text-red-400">
-                {apiKey.lastError}
-              </p>
-            )}
           </div>
         )}
 
@@ -236,65 +218,82 @@ function ProviderCard({
 }
 
 export default function APIKeysPage() {
-  const [apiKeys, setApiKeys] = React.useState<UserAPIKey[]>(mockAPIKeys);
-  const [dialogProvider, setDialogProvider] =
-    React.useState<ProviderConfig | null>(null);
+  const [apiKeys, setApiKeys] = React.useState<APIKeyData[]>([]);
+  const [teamId, setTeamId] = React.useState<string | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [dialogProvider, setDialogProvider] = React.useState<ProviderConfig | null>(null);
   const [keyInput, setKeyInput] = React.useState("");
   const [isTesting, setIsTesting] = React.useState(false);
-  const [testResult, setTestResult] = React.useState<
-    "success" | "error" | null
-  >(null);
+  const [testResult, setTestResult] = React.useState<"success" | "error" | null>(null);
   const [isSaving, setIsSaving] = React.useState(false);
-  const [removeKey, setRemoveKey] = React.useState<UserAPIKey | null>(null);
+  const [saveError, setSaveError] = React.useState<string | null>(null);
+  const [removeKey, setRemoveKey] = React.useState<APIKeyData | null>(null);
   const [isRemoving, setIsRemoving] = React.useState(false);
 
-  function getApiKeyForProvider(providerId: APIProvider): UserAPIKey | undefined {
-    return apiKeys.find((k) => k.providerId === providerId);
+  // Load team and API keys on mount
+  React.useEffect(() => {
+    async function loadData() {
+      const { data: profile } = await getProfile();
+      if (!profile?.default_team_id) {
+        setIsLoading(false);
+        return;
+      }
+
+      setTeamId(profile.default_team_id);
+
+      const { data: keys } = await getAPIKeys(profile.default_team_id);
+      if (keys) {
+        setApiKeys(keys);
+      }
+      setIsLoading(false);
+    }
+    loadData();
+  }, []);
+
+  function getApiKeyForProvider(slug: string): APIKeyData | undefined {
+    return apiKeys.find((k) => k.providerSlug === slug);
   }
 
   async function handleTestConnection() {
-    if (!keyInput.trim()) return;
+    if (!keyInput.trim() || !dialogProvider) return;
 
     setIsTesting(true);
     setTestResult(null);
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // Basic validation based on key prefix
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    const isValid = keyInput.length > 10;
+    const prefix = dialogProvider.keyPrefix;
+    const isValid = prefix
+      ? keyInput.startsWith(prefix) && keyInput.length > 10
+      : keyInput.length > 10;
+
     setTestResult(isValid ? "success" : "error");
     setIsTesting(false);
   }
 
   async function handleSaveKey() {
-    if (!dialogProvider || !keyInput.trim()) return;
+    if (!dialogProvider || !keyInput.trim() || !teamId) return;
 
     setIsSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    setSaveError(null);
 
-    const existingIndex = apiKeys.findIndex(
-      (k) => k.providerId === dialogProvider.id
-    );
+    const { success, error } = await storeAPIKeySimple({
+      teamId,
+      providerSlug: dialogProvider.slug,
+      apiKey: keyInput,
+    });
 
-    if (existingIndex >= 0) {
-      setApiKeys((prev) =>
-        prev.map((k, i) =>
-          i === existingIndex
-            ? { ...k, isActive: true, lastError: null, lastUsedAt: null }
-            : k
-        )
-      );
-    } else {
-      const newKey: UserAPIKey = {
-        id: `key-${Date.now()}`,
-        teamId: "team-1",
-        providerId: dialogProvider.id,
-        config: {},
-        isActive: true,
-        lastUsedAt: null,
-        lastError: null,
-        createdAt: new Date().toISOString(),
-      };
-      setApiKeys((prev) => [...prev, newKey]);
+    if (!success) {
+      setSaveError(error || "Failed to save API key");
+      setIsSaving(false);
+      return;
+    }
+
+    // Refresh the API keys list
+    const { data: keys } = await getAPIKeys(teamId);
+    if (keys) {
+      setApiKeys(keys);
     }
 
     setIsSaving(false);
@@ -304,17 +303,46 @@ export default function APIKeysPage() {
   }
 
   async function handleRemoveKey() {
-    if (!removeKey) return;
+    if (!removeKey || !teamId) return;
 
     setIsRemoving(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    setApiKeys((prev) => prev.filter((k) => k.id !== removeKey.id));
+    const { success } = await deleteAPIKey(removeKey.id);
+
+    if (success) {
+      // Refresh the API keys list
+      const { data: keys } = await getAPIKeys(teamId);
+      if (keys) {
+        setApiKeys(keys);
+      }
+    }
+
     setIsRemoving(false);
     setRemoveKey(null);
   }
 
   const connectedCount = apiKeys.filter((k) => k.isActive).length;
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!teamId) {
+    return (
+      <div className="space-y-6">
+        <Alert>
+          <AlertTitle>No team found</AlertTitle>
+          <AlertDescription>
+            Please complete onboarding to set up your team before managing API keys.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -354,11 +382,11 @@ export default function APIKeysPage() {
         <div className="flex gap-1">
           {providers.map((p) => {
             const isConnected = apiKeys.some(
-              (k) => k.providerId === p.id && k.isActive
+              (k) => k.providerSlug === p.slug && k.isActive
             );
             return (
               <div
-                key={p.id}
+                key={p.slug}
                 className={cn(
                   "size-3 rounded-full",
                   isConnected ? "bg-green-500" : "bg-gray-300"
@@ -373,9 +401,9 @@ export default function APIKeysPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {providers.map((provider) => (
           <ProviderCard
-            key={provider.id}
+            key={provider.slug}
             provider={provider}
-            apiKey={getApiKeyForProvider(provider.id)}
+            apiKey={getApiKeyForProvider(provider.slug)}
             onAddKey={setDialogProvider}
             onRemoveKey={setRemoveKey}
           />
@@ -389,13 +417,14 @@ export default function APIKeysPage() {
             setDialogProvider(null);
             setKeyInput("");
             setTestResult(null);
+            setSaveError(null);
           }
         }}
       >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {getApiKeyForProvider(dialogProvider?.id as APIProvider)
+              {getApiKeyForProvider(dialogProvider?.slug || "")
                 ? "Update"
                 : "Add"}{" "}
               {dialogProvider?.name} API Key
@@ -423,6 +452,7 @@ export default function APIKeysPage() {
                 onChange={(e) => {
                   setKeyInput(e.target.value);
                   setTestResult(null);
+                  setSaveError(null);
                 }}
                 placeholder={
                   dialogProvider?.keyPrefix
@@ -436,7 +466,7 @@ export default function APIKeysPage() {
               <div className="flex items-center gap-2 rounded-lg bg-green-50 p-3 text-green-700 dark:bg-green-950/50 dark:text-green-400">
                 <Check className="size-4" />
                 <span className="text-sm font-medium">
-                  Connection successful!
+                  Key format looks valid!
                 </span>
               </div>
             )}
@@ -445,8 +475,15 @@ export default function APIKeysPage() {
               <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-red-700 dark:bg-red-950/50 dark:text-red-400">
                 <X className="size-4" />
                 <span className="text-sm font-medium">
-                  Connection failed. Please check your API key.
+                  Invalid key format. Please check your API key.
                 </span>
+              </div>
+            )}
+
+            {saveError && (
+              <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-red-700 dark:bg-red-950/50 dark:text-red-400">
+                <X className="size-4" />
+                <span className="text-sm font-medium">{saveError}</span>
               </div>
             )}
           </div>
@@ -464,7 +501,7 @@ export default function APIKeysPage() {
                   Testing...
                 </>
               ) : (
-                "Test Connection"
+                "Test Format"
               )}
             </Button>
             <Button
@@ -473,6 +510,7 @@ export default function APIKeysPage() {
                 setDialogProvider(null);
                 setKeyInput("");
                 setTestResult(null);
+                setSaveError(null);
               }}
             >
               Cancel
@@ -500,7 +538,7 @@ export default function APIKeysPage() {
             <DialogTitle>Remove API Key</DialogTitle>
             <DialogDescription>
               Are you sure you want to remove this{" "}
-              {providers.find((p) => p.id === removeKey?.providerId)?.name} API
+              {providers.find((p) => p.slug === removeKey?.providerSlug)?.name} API
               key? Features using this provider will stop working.
             </DialogDescription>
           </DialogHeader>
