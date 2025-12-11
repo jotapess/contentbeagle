@@ -276,7 +276,7 @@ export async function pollCrawlStatus(
       // Update brand status
       await supabase
         .from('brands')
-        .update({ status: 'active' })
+        .update({ status: 'ready' })
         .eq('id', job.brand_id);
     }
   } else if (statusResult.status === 'failed') {

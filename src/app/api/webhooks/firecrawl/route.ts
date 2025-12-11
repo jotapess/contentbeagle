@@ -209,14 +209,14 @@ export async function POST(request: NextRequest) {
         const { error: brandUpdateError } = await supabase
           .from('brands')
           .update({
-            status: 'active',
+            status: 'ready',
           })
           .eq('id', brandId);
 
         if (brandUpdateError) {
           console.error(`[Firecrawl Webhook] Failed to update brand status:`, brandUpdateError);
         } else {
-          console.log(`[Firecrawl Webhook] Brand ${brandId} status updated to active`);
+          console.log(`[Firecrawl Webhook] Brand ${brandId} status updated to ready`);
         }
 
         console.log(`[Firecrawl Webhook] Crawl completed: ${finalJob?.pages_crawled} pages for brand ${brandId}`);

@@ -214,7 +214,7 @@ export async function analyzeBrandVoice(
   // Update brand status to indicate profile is ready
   await supabase
     .from("brands")
-    .update({ status: "active" })
+    .update({ status: "ready" })
     .eq("id", brandId);
 
   // Log AI usage
