@@ -164,9 +164,8 @@ export function HistoryPageClient({ article, versions }: HistoryPageClientProps)
   }
 
   return (
-    <div className="flex h-[calc(100vh-8rem)]">
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="mx-auto max-w-3xl space-y-6">
+    <div className="min-h-[calc(100vh-8rem)] p-6">
+      <div className="mx-auto max-w-3xl space-y-6">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">Version History</h2>
@@ -311,7 +310,6 @@ export function HistoryPageClient({ article, versions }: HistoryPageClientProps)
             </div>
           )}
         </div>
-      </div>
 
       <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
         <DialogContent className="max-w-3xl">

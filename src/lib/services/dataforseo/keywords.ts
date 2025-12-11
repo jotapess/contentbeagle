@@ -156,6 +156,20 @@ export async function getSearchVolume(
   for (const task of response.tasks) {
     if (task.result) {
       for (const item of task.result) {
+        // Skip items with missing keyword_info
+        if (!item.keyword_info) {
+          results.push({
+            keyword: item.keyword,
+            searchVolume: 0,
+            competition: 0,
+            competitionLevel: null,
+            cpc: null,
+            lowTopOfPageBid: null,
+            highTopOfPageBid: null,
+            monthlySearches: [],
+          });
+          continue;
+        }
         results.push({
           keyword: item.keyword,
           searchVolume: item.keyword_info.search_volume || 0,
@@ -220,6 +234,21 @@ export async function getRelatedKeywords(
     if (task.result) {
       for (const result of task.result) {
         for (const item of result.items || []) {
+          // Skip items with missing keyword_info
+          if (!item.keyword_info) {
+            results.push({
+              keyword: item.keyword,
+              searchVolume: 0,
+              competition: 0,
+              competitionLevel: null,
+              cpc: null,
+              lowTopOfPageBid: null,
+              highTopOfPageBid: null,
+              monthlySearches: [],
+              relevance: item.relevance || 0,
+            });
+            continue;
+          }
           results.push({
             keyword: item.keyword,
             searchVolume: item.keyword_info.search_volume || 0,

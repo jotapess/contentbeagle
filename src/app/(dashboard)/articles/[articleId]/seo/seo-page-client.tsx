@@ -14,6 +14,7 @@ import {
   RefreshCw,
   Info,
 } from "lucide-react";
+import showdown from "showdown";
 
 import type { ArticleWithBrand } from "@/lib/actions/articles";
 import {
@@ -44,6 +45,13 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert";
+
+const markdownConverter = new showdown.Converter({
+  tables: true,
+  simplifiedAutoLink: true,
+  strikethrough: true,
+  tasklists: true,
+});
 
 interface SEOCheckItem {
   id: string;
@@ -333,18 +341,24 @@ export function SEOPageClient({ article }: SEOPageClientProps) {
   }, [savedKeywords, relatedKeywords]);
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] gap-6 items-start">
-      <div className="min-w-0 flex-1 overflow-y-auto border-r p-6">
-        <h2 className="mb-4 text-lg font-semibold">Article Preview</h2>
-        <article className="prose prose-sm max-w-none dark:prose-invert">
-          <h1>{article.title}</h1>
-          <div className="whitespace-pre-wrap font-mono text-sm text-muted-foreground">
-            {article.content}
-          </div>
-        </article>
+    <div className="relative">
+      {/* Main content area - takes full width minus sidebar */}
+      <div className="mr-[360px] min-h-[calc(100vh-8rem)] p-6">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="mb-4 text-lg font-semibold">Article Preview</h2>
+          <article className="prose prose-sm dark:prose-invert">
+            <h1>{article.title}</h1>
+            <div
+              dangerouslySetInnerHTML={{
+                __html: article.content ? markdownConverter.makeHtml(article.content) : ""
+              }}
+            />
+          </article>
+        </div>
       </div>
 
-      <aside className="w-[400px] shrink-0 overflow-y-auto bg-muted/30 p-6">
+      {/* Right sidebar - fixed to right edge */}
+      <aside className="fixed right-0 top-[8rem] h-[calc(100vh-8rem)] w-[360px] overflow-y-auto border-l bg-background p-4 shadow-sm">
         <div className="space-y-6">
           <div className="flex justify-center">
             <SEOScoreCircle score={seoScore} />

@@ -43,11 +43,14 @@ export function TiptapEditor({
   const [markdownContent, setMarkdownContent] = React.useState("");
 
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         heading: {
           levels: [1, 2, 3],
         },
+        // Disable built-in link to use our custom configured Link extension
+        link: false,
       }),
       Link.configure({
         openOnClick: false,

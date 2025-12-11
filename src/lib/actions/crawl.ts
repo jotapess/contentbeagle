@@ -106,14 +106,27 @@ export async function createCrawlJob(
       return { data: null, error: crawlResult.error || 'Failed to start crawl' };
     }
 
-    // Update job with Firecrawl job ID
+    // Update job with Firecrawl job ID for polling support
     await supabase
       .from('crawl_jobs')
       .update({
         status: 'in_progress',
         started_at: new Date().toISOString(),
+        firecrawl_job_id: crawlResult.jobId, // Store for polling
       })
       .eq('id', crawlJob.id);
+
+    // Return updated job with firecrawl_job_id
+    const { data: updatedJob } = await supabase
+      .from('crawl_jobs')
+      .select()
+      .eq('id', crawlJob.id)
+      .single();
+
+    if (updatedJob) {
+      revalidatePath(`/brands/${brandId}/crawled`);
+      return { data: updatedJob, error: null };
+    }
   }
 
   revalidatePath(`/brands/${brandId}/crawled`);
@@ -162,6 +175,126 @@ export async function getCrawlJob(
   }
 
   return { data, error: null };
+}
+
+/**
+ * Poll Firecrawl for crawl status and update database
+ * Used for local development where webhooks can't reach localhost
+ */
+export async function pollCrawlStatus(
+  jobId: string
+): Promise<{
+  status: string;
+  progress: number;
+  total: number;
+  completed: boolean;
+  error: string | null;
+  crawledUrls: string[];
+}> {
+  const supabase = await createClient();
+
+  // Get job with firecrawl_job_id
+  const { data: job, error: jobError } = await supabase
+    .from('crawl_jobs')
+    .select('*, brands(team_id)')
+    .eq('id', jobId)
+    .single();
+
+  if (jobError || !job) {
+    return { status: 'failed', progress: 0, total: 0, completed: false, error: 'Job not found', crawledUrls: [] };
+  }
+
+  // If already completed or failed, return current status with crawled pages
+  if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+    // Get already crawled pages from database
+    const { data: existingPages } = await supabase
+      .from('crawled_pages')
+      .select('url')
+      .eq('crawl_job_id', jobId)
+      .order('crawled_at', { ascending: false });
+
+    return {
+      status: job.status,
+      progress: job.pages_crawled || 0,
+      total: job.max_pages || 0,
+      completed: job.status === 'completed',
+      error: null,
+      crawledUrls: existingPages?.map(p => p.url) || [],
+    };
+  }
+
+  // Get Firecrawl job ID
+  const firecrawlJobId = job.firecrawl_job_id;
+  if (!firecrawlJobId) {
+    return { status: 'pending', progress: 0, total: 0, completed: false, error: 'No Firecrawl job ID', crawledUrls: [] };
+  }
+
+  // Poll Firecrawl
+  const statusResult = await getFirecrawlStatus(firecrawlJobId);
+
+  if (!statusResult.success) {
+    return { status: 'failed', progress: 0, total: 0, completed: false, error: statusResult.error || 'Failed to get status', crawledUrls: [] };
+  }
+
+  // Extract URLs from current crawl data
+  const crawledUrls = statusResult.data?.map(d => d.url).filter(Boolean) as string[] || [];
+
+  // Update database with progress
+  const updates: Record<string, unknown> = {
+    pages_crawled: statusResult.progress || 0,
+  };
+
+  if (statusResult.status === 'completed') {
+    updates.status = 'completed';
+    updates.completed_at = new Date().toISOString();
+
+    // Store crawled pages
+    if (statusResult.data && statusResult.data.length > 0) {
+      for (const page of statusResult.data) {
+        if (page.url && page.markdown) {
+          await supabase.from('crawled_pages').upsert(
+            {
+              brand_id: job.brand_id,
+              crawl_job_id: jobId,
+              url: page.url,
+              title: page.title || null,
+              meta_description: page.description || null,
+              markdown_content: page.markdown,
+              plain_text: page.markdown.replace(/[#*_`\[\]()]/g, ''),
+              crawled_at: new Date().toISOString(),
+              is_active: true,
+            },
+            { onConflict: 'url,brand_id' }
+          );
+        }
+      }
+
+      // Update brand status
+      await supabase
+        .from('brands')
+        .update({ status: 'active' })
+        .eq('id', job.brand_id);
+    }
+  } else if (statusResult.status === 'failed') {
+    updates.status = 'failed';
+    updates.error_message = 'Crawl failed';
+    updates.completed_at = new Date().toISOString();
+  } else {
+    updates.status = 'in_progress';
+  }
+
+  await supabase.from('crawl_jobs').update(updates).eq('id', jobId);
+
+  revalidatePath(`/brands/${job.brand_id}/crawled`);
+
+  return {
+    status: statusResult.status,
+    progress: statusResult.progress || 0,
+    total: statusResult.total || job.max_pages || 0,
+    completed: statusResult.status === 'completed',
+    error: null,
+    crawledUrls,
+  };
 }
 
 /**

@@ -150,66 +150,75 @@ export function ArticleEditorClient({ article }: ArticleEditorClientProps) {
   const nextStatus = getNextStatus();
 
   return (
-    <div className="flex h-[calc(100vh-8rem)]">
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="border-b px-6 py-4">
-          <Label htmlFor="title" className="sr-only">
-            Article Title
-          </Label>
-          <Input
-            id="title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="border-0 bg-transparent px-0 text-xl font-semibold shadow-none focus-visible:ring-0"
-            placeholder="Article title..."
-          />
-        </div>
-
-        <div className="flex-1 overflow-auto p-4">
-          <Label htmlFor="content" className="sr-only">
-            Article Content
-          </Label>
-          <TiptapEditor
-            content={content}
-            onChange={setContent}
-            placeholder="Start writing your article..."
-            className="h-full"
-          />
-        </div>
-
-        <div className="flex items-center justify-between border-t px-6 py-3">
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            {hasChanges && (
-              <span className="text-amber-600">Unsaved changes</span>
-            )}
+    <div className="relative">
+      {/* Main content area */}
+      <div className={cn(
+        "min-h-[calc(100vh-8rem)] transition-[margin] duration-200",
+        sidebarOpen ? "mr-[320px]" : "mr-0"
+      )}>
+        <div className="mx-auto max-w-4xl">
+          <div className="border-b px-6 py-4">
+            <Label htmlFor="title" className="sr-only">
+              Article Title
+            </Label>
+            <Input
+              id="title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="border-0 bg-transparent px-0 text-xl font-semibold shadow-none focus-visible:ring-0"
+              placeholder="Article title..."
+            />
           </div>
 
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setSidebarOpen(!sidebarOpen)}
-                  aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
-                >
-                  {sidebarOpen ? (
-                    <PanelRightClose className="size-5" />
-                  ) : (
-                    <PanelRightOpen className="size-5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {sidebarOpen ? "Close sidebar" : "Open sidebar"}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <div className="p-4">
+            <Label htmlFor="content" className="sr-only">
+              Article Content
+            </Label>
+            <TiptapEditor
+              content={content}
+              onChange={setContent}
+              placeholder="Start writing your article..."
+              className="min-h-[500px]"
+            />
+          </div>
+
+          <div className="flex items-center justify-between border-t px-6 py-3">
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              {hasChanges && (
+                <span className="text-amber-600">Unsaved changes</span>
+              )}
+            </div>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setSidebarOpen(!sidebarOpen)}
+                    aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+                  >
+                    {sidebarOpen ? (
+                      <PanelRightClose className="size-5" />
+                    ) : (
+                      <PanelRightOpen className="size-5" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {sidebarOpen ? "Close sidebar" : "Open sidebar"}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         </div>
       </div>
 
-      {sidebarOpen && (
-        <aside className="w-80 shrink-0 overflow-y-auto border-l bg-muted/30">
+      {/* Right sidebar - fixed to right edge */}
+      <aside className={cn(
+        "fixed right-0 top-[8rem] h-[calc(100vh-8rem)] w-[320px] overflow-y-auto border-l bg-background shadow-sm transition-transform duration-200",
+        sidebarOpen ? "translate-x-0" : "translate-x-full"
+      )}>
           <div className="space-y-6 p-6">
             <section>
               <h3 className="mb-4 text-sm font-semibold">Article Details</h3>
@@ -338,7 +347,6 @@ export function ArticleEditorClient({ article }: ArticleEditorClientProps) {
             </section>
           </div>
         </aside>
-      )}
     </div>
   );
 }

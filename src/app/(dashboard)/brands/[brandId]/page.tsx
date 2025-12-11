@@ -105,11 +105,14 @@ export default function BrandOverviewPage() {
     hasExistingProfile: boolean;
   } | null>(null);
   const [crawlJob, setCrawlJob] = React.useState<{
+    id: string;
     status: string;
     progress?: number;
     total?: number;
+    crawledUrls?: string[];
   } | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [isPolling, setIsPolling] = React.useState(false);
   const [isAnalyzing, setIsAnalyzing] = React.useState(false);
   const [analysisError, setAnalysisError] = React.useState<string | null>(null);
   const [analysisSuccess, setAnalysisSuccess] = React.useState(false);
@@ -141,14 +144,17 @@ export default function BrandOverviewPage() {
       // Check for active crawl job
       if (crawlJobsResult.data && crawlJobsResult.data.length > 0) {
         const activeJob = crawlJobsResult.data.find(
-          (job) => job.status === "pending" || job.status === "scraping"
+          (job) => job.status === "pending" || job.status === "scraping" || job.status === "in_progress"
         );
         if (activeJob) {
           setCrawlJob({
+            id: activeJob.id,
             status: activeJob.status,
             progress: activeJob.pages_crawled || 0,
             total: activeJob.max_pages || undefined,
           });
+        } else {
+          setCrawlJob(null);
         }
       }
     } catch (error) {
@@ -164,11 +170,53 @@ export default function BrandOverviewPage() {
 
   // Poll for updates if crawling
   React.useEffect(() => {
-    if (crawlJob && (crawlJob.status === "pending" || crawlJob.status === "scraping")) {
-      const interval = setInterval(loadData, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [crawlJob, loadData]);
+    if (!crawlJob) return;
+    if (crawlJob.status === "completed" || crawlJob.status === "failed" || crawlJob.status === "cancelled") return;
+
+    const pollCrawlProgress = async () => {
+      if (isPolling) return;
+      setIsPolling(true);
+
+      try {
+        const response = await fetch("/api/crawl/poll", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId: crawlJob.id }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          setCrawlJob((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: result.status,
+                  progress: result.progress,
+                  total: result.total,
+                  crawledUrls: result.crawledUrls || [],
+                }
+              : null
+          );
+
+          // If completed, reload all data
+          if (result.completed) {
+            await loadData();
+          }
+        }
+      } catch (error) {
+        console.error("Error polling crawl status:", error);
+      } finally {
+        setIsPolling(false);
+      }
+    };
+
+    // Poll every 3 seconds
+    const interval = setInterval(pollCrawlProgress, 3000);
+    // Also poll immediately
+    pollCrawlProgress();
+
+    return () => clearInterval(interval);
+  }, [crawlJob?.id, crawlJob?.status, isPolling, loadData]);
 
   const handleAnalyzeBrand = async () => {
     setIsAnalyzing(true);
@@ -217,7 +265,7 @@ export default function BrandOverviewPage() {
     : null;
 
   const showAnalysisButton = analysisStatus?.canAnalyze && !crawlJob;
-  const showCrawlProgress = crawlJob && (crawlJob.status === "pending" || crawlJob.status === "scraping");
+  const showCrawlProgress = crawlJob && (crawlJob.status === "pending" || crawlJob.status === "scraping" || crawlJob.status === "in_progress");
 
   return (
     <div className="space-y-6">
@@ -299,24 +347,53 @@ export default function BrandOverviewPage() {
 
       {/* Crawl Progress */}
       {showCrawlProgress && (
-        <Alert>
-          <Loader2 className="size-4 animate-spin" />
-          <AlertTitle>Crawling Website</AlertTitle>
-          <AlertDescription className="space-y-2">
-            <p>We&apos;re crawling your website to analyze your brand voice...</p>
-            {crawlJob.total && (
-              <div className="space-y-1">
-                <Progress
-                  value={((crawlJob.progress || 0) / crawlJob.total) * 100}
-                  className="h-2"
-                />
-                <p className="text-xs text-muted-foreground">
-                  {crawlJob.progress || 0} of {crawlJob.total} pages crawled
-                </p>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Loader2 className="size-4 animate-spin" />
+              Crawling Website
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              We&apos;re crawling your website to analyze your brand voice...
+            </p>
+
+            {/* Progress bar */}
+            <div className="space-y-2">
+              <Progress
+                value={crawlJob.total ? ((crawlJob.progress || 0) / crawlJob.total) * 100 : 0}
+                className="h-2"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{crawlJob.progress || 0} of {crawlJob.total || '?'} pages crawled</span>
+                <span className="capitalize">{crawlJob.status.replace(/_/g, ' ')}</span>
+              </div>
+            </div>
+
+            {/* Crawled URLs list */}
+            {crawlJob.crawledUrls && crawlJob.crawledUrls.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Recently crawled:</p>
+                <div className="max-h-32 overflow-y-auto rounded-md border bg-muted/50 p-2">
+                  <ul className="space-y-1 text-xs">
+                    {crawlJob.crawledUrls.slice(0, 10).map((url, i) => (
+                      <li key={i} className="flex items-center gap-2 truncate text-muted-foreground">
+                        <Globe className="size-3 shrink-0 text-green-500" />
+                        <span className="truncate">{url.replace(/^https?:\/\//, '')}</span>
+                      </li>
+                    ))}
+                    {crawlJob.crawledUrls.length > 10 && (
+                      <li className="text-muted-foreground/60">
+                        +{crawlJob.crawledUrls.length - 10} more pages...
+                      </li>
+                    )}
+                  </ul>
+                </div>
               </div>
             )}
-          </AlertDescription>
-        </Alert>
+          </CardContent>
+        </Card>
       )}
 
       {/* Analysis Success */}

@@ -528,6 +528,68 @@ export type Database = {
           },
         ]
       }
+      brand_intelligence: {
+        Row: {
+          brand_id: string
+          content_gaps: Json | null
+          created_at: string | null
+          extracted_keywords: Json | null
+          extracted_topics: Json | null
+          extraction_error: string | null
+          extraction_model: string | null
+          extraction_status: string | null
+          id: string
+          keyword_opportunities: Json | null
+          last_extraction_at: string | null
+          last_keyword_research_at: string | null
+          pages_analyzed: number | null
+          updated_at: string | null
+          voice_summary: Json | null
+        }
+        Insert: {
+          brand_id: string
+          content_gaps?: Json | null
+          created_at?: string | null
+          extracted_keywords?: Json | null
+          extracted_topics?: Json | null
+          extraction_error?: string | null
+          extraction_model?: string | null
+          extraction_status?: string | null
+          id?: string
+          keyword_opportunities?: Json | null
+          last_extraction_at?: string | null
+          last_keyword_research_at?: string | null
+          pages_analyzed?: number | null
+          updated_at?: string | null
+          voice_summary?: Json | null
+        }
+        Update: {
+          brand_id?: string
+          content_gaps?: Json | null
+          created_at?: string | null
+          extracted_keywords?: Json | null
+          extracted_topics?: Json | null
+          extraction_error?: string | null
+          extraction_model?: string | null
+          extraction_status?: string | null
+          id?: string
+          keyword_opportunities?: Json | null
+          last_extraction_at?: string | null
+          last_keyword_research_at?: string | null
+          pages_analyzed?: number | null
+          updated_at?: string | null
+          voice_summary?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_intelligence_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: true
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brand_profiles: {
         Row: {
           avoid_words: string[] | null
@@ -691,6 +753,7 @@ export type Database = {
           completed_at: string | null
           created_at: string | null
           error_message: string | null
+          firecrawl_job_id: string | null
           id: string
           max_pages: number | null
           pages_crawled: number | null
@@ -704,6 +767,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string | null
           error_message?: string | null
+          firecrawl_job_id?: string | null
           id?: string
           max_pages?: number | null
           pages_crawled?: number | null
@@ -717,6 +781,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string | null
           error_message?: string | null
+          firecrawl_job_id?: string | null
           id?: string
           max_pages?: number | null
           pages_crawled?: number | null
@@ -781,11 +846,13 @@ export type Database = {
         Row: {
           brand_id: string
           canonical_url: string | null
+          content_category: string | null
           content_hash: string | null
           content_type: string | null
           crawl_job_id: string | null
           crawled_at: string | null
           created_at: string | null
+          extracted_keywords: string[] | null
           id: string
           is_active: boolean | null
           key_topics: string[] | null
@@ -793,6 +860,7 @@ export type Database = {
           markdown_content: string | null
           meta_description: string | null
           plain_text: string | null
+          primary_topic: string | null
           published_date: string | null
           reading_time_minutes: number | null
           summary: string | null
@@ -804,11 +872,13 @@ export type Database = {
         Insert: {
           brand_id: string
           canonical_url?: string | null
+          content_category?: string | null
           content_hash?: string | null
           content_type?: string | null
           crawl_job_id?: string | null
           crawled_at?: string | null
           created_at?: string | null
+          extracted_keywords?: string[] | null
           id?: string
           is_active?: boolean | null
           key_topics?: string[] | null
@@ -816,6 +886,7 @@ export type Database = {
           markdown_content?: string | null
           meta_description?: string | null
           plain_text?: string | null
+          primary_topic?: string | null
           published_date?: string | null
           reading_time_minutes?: number | null
           summary?: string | null
@@ -827,11 +898,13 @@ export type Database = {
         Update: {
           brand_id?: string
           canonical_url?: string | null
+          content_category?: string | null
           content_hash?: string | null
           content_type?: string | null
           crawl_job_id?: string | null
           crawled_at?: string | null
           created_at?: string | null
+          extracted_keywords?: string[] | null
           id?: string
           is_active?: boolean | null
           key_topics?: string[] | null
@@ -839,6 +912,7 @@ export type Database = {
           markdown_content?: string | null
           meta_description?: string | null
           plain_text?: string | null
+          primary_topic?: string | null
           published_date?: string | null
           reading_time_minutes?: number | null
           summary?: string | null

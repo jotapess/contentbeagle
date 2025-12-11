@@ -2,11 +2,13 @@
  * Firecrawl Webhook Handler
  *
  * Receives crawl events from Firecrawl and updates the database accordingly.
+ * After crawl completion, triggers the intelligence extraction pipeline.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { cacheCrawledPage } from '@/lib/cache/redis';
+import { runFullIntelligencePipeline } from '@/lib/actions/intelligence';
 
 // Webhook event types from Firecrawl
 type FirecrawlEventType =
@@ -190,6 +192,21 @@ export async function POST(request: NextRequest) {
           .eq('id', brandId);
 
         console.log(`[Firecrawl Webhook] Crawl completed: ${finalJob?.pages_crawled} pages`);
+
+        // Trigger intelligence extraction pipeline asynchronously
+        // This runs in the background and doesn't block the webhook response
+        runFullIntelligencePipeline(brandId)
+          .then((result) => {
+            if (result.success) {
+              console.log(`[Firecrawl Webhook] Intelligence extraction completed for brand ${brandId}`);
+            } else {
+              console.error(`[Firecrawl Webhook] Intelligence extraction failed: ${result.error}`);
+            }
+          })
+          .catch((error) => {
+            console.error(`[Firecrawl Webhook] Intelligence extraction error:`, error);
+          });
+
         break;
 
       case 'crawl.failed':

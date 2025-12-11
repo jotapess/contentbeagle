@@ -140,8 +140,8 @@ export async function toggleAPIKeyStatus(keyId: string, isActive: boolean) {
 }
 
 // Get decrypted API keys for AI service (internal use only)
-// For development: uses environment variables as fallback
-// In production: would retrieve from Supabase Vault
+// Priority: BYOK keys from Vault > Environment variables
+// This allows testing without BYOK setup while preserving BYOK functionality
 export async function getDecryptedAPIKeys(teamId: string): Promise<{ data: UserAPIKeys | null; error: string | null }> {
   const supabase = await createClient();
 
@@ -157,18 +157,30 @@ export async function getDecryptedAPIKeys(teamId: string): Promise<{ data: UserA
 
   if (error) return { data: null, error: error.message };
 
-  // For development/testing: check environment variables as fallback
-  // In production, this would decrypt from Vault using vault_secret_id
   const userKeys: UserAPIKeys = {};
+  const configuredProviders = new Set((keys || []).map(k => k.provider_id));
 
+  // First, use BYOK keys from database (would decrypt from Vault in production)
   for (const key of keys || []) {
-    if (key.provider_id === "openai") {
+    if (key.provider_id === "openai" && process.env.OPENAI_API_KEY) {
       userKeys.openai = process.env.OPENAI_API_KEY;
-    } else if (key.provider_id === "anthropic") {
+    } else if (key.provider_id === "anthropic" && process.env.ANTHROPIC_API_KEY) {
       userKeys.anthropic = process.env.ANTHROPIC_API_KEY;
-    } else if (key.provider_id === "google") {
+    } else if (key.provider_id === "google" && process.env.GOOGLE_AI_API_KEY) {
       userKeys.google = process.env.GOOGLE_AI_API_KEY;
     }
+  }
+
+  // Fallback to environment variables for providers NOT configured via BYOK
+  // This enables testing without BYOK setup
+  if (!configuredProviders.has("openai") && process.env.OPENAI_API_KEY) {
+    userKeys.openai = process.env.OPENAI_API_KEY;
+  }
+  if (!configuredProviders.has("anthropic") && process.env.ANTHROPIC_API_KEY) {
+    userKeys.anthropic = process.env.ANTHROPIC_API_KEY;
+  }
+  if (!configuredProviders.has("google") && process.env.GOOGLE_AI_API_KEY) {
+    userKeys.google = process.env.GOOGLE_AI_API_KEY;
   }
 
   return { data: userKeys, error: null };

@@ -220,31 +220,35 @@ export function LinksPageClient({ article }: LinksPageClientProps) {
   );
 
   return (
-    <div className="flex h-[calc(100vh-8rem)]">
-      <div className="flex-1 overflow-y-auto border-r p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Article Content</h2>
-          <div className="flex items-center gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <span className="size-3 rounded bg-amber-200 dark:bg-amber-900/50" />
-              <span className="text-muted-foreground">Suggested</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="size-3 rounded bg-green-200 dark:bg-green-900/50" />
-              <span className="text-muted-foreground">Applied</span>
+    <div className="relative">
+      {/* Main content area */}
+      <div className="mr-[360px] min-h-[calc(100vh-8rem)] p-6">
+        <div className="mx-auto max-w-3xl">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Article Content</h2>
+            <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="size-3 rounded bg-amber-200 dark:bg-amber-900/50" />
+                <span className="text-muted-foreground">Suggested</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="size-3 rounded bg-green-200 dark:bg-green-900/50" />
+                <span className="text-muted-foreground">Applied</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <article className="prose prose-sm max-w-none dark:prose-invert">
-          <h1>{article.title}</h1>
-          <div className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-muted-foreground">
-            {highlightedContent}
-          </div>
-        </article>
+          <article className="prose prose-sm dark:prose-invert">
+            <h1>{article.title}</h1>
+            <div className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+              {highlightedContent}
+            </div>
+          </article>
+        </div>
       </div>
 
-      <aside className="w-[400px] shrink-0 overflow-hidden bg-muted/30">
+      {/* Right sidebar - fixed to right edge */}
+      <aside className="fixed right-0 top-[8rem] h-[calc(100vh-8rem)] w-[360px] overflow-hidden border-l bg-background shadow-sm">
         <div className="flex h-full flex-col">
           <div className="border-b p-6">
             <div className="grid grid-cols-2 gap-4">

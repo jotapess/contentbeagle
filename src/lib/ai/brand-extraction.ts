@@ -18,6 +18,83 @@ import {
 } from './prompts/brand-voice-analysis';
 import type { TablesInsert, Json } from '@/types/database';
 
+/**
+ * Map AI analysis POV values to database-compatible values
+ * AI returns: 'first_singular', 'first_plural', 'second', 'third', 'mixed'
+ * DB expects: 'first_person', 'second_person', 'third_person', 'mixed'
+ */
+function mapPovToDatabase(pov: string): 'first_person' | 'second_person' | 'third_person' | 'mixed' {
+  switch (pov) {
+    case 'first_singular':
+    case 'first_plural':
+      return 'first_person';
+    case 'second':
+      return 'second_person';
+    case 'third':
+      return 'third_person';
+    case 'mixed':
+    default:
+      return 'mixed';
+  }
+}
+
+/**
+ * Map AI sentence structure to database-compatible values
+ * AI returns: 'simple', 'complex', 'mixed', 'varied'
+ * DB expects: 'short', 'mixed', 'long'
+ */
+function mapSentenceStructureToDatabase(structure: string): 'short' | 'mixed' | 'long' {
+  switch (structure) {
+    case 'simple':
+      return 'short';
+    case 'complex':
+      return 'long';
+    case 'mixed':
+    case 'varied':
+    default:
+      return 'mixed';
+  }
+}
+
+/**
+ * Map AI vocabulary level to database-compatible values
+ * AI returns: 'basic', 'intermediate', 'advanced', 'technical'
+ * DB expects: 'simple', 'moderate', 'advanced', 'technical'
+ */
+function mapVocabularyToDatabase(level: string): 'simple' | 'moderate' | 'advanced' | 'technical' {
+  switch (level) {
+    case 'basic':
+      return 'simple';
+    case 'intermediate':
+      return 'moderate';
+    case 'advanced':
+      return 'advanced';
+    case 'technical':
+      return 'technical';
+    default:
+      return 'moderate';
+  }
+}
+
+/**
+ * Map AI paragraph length to database-compatible values
+ * AI returns: 'short', 'medium', 'long', 'varied'
+ * DB expects: 'short', 'medium', 'long'
+ */
+function mapParagraphLengthToDatabase(length: string): 'short' | 'medium' | 'long' {
+  switch (length) {
+    case 'short':
+      return 'short';
+    case 'medium':
+      return 'medium';
+    case 'long':
+      return 'long';
+    case 'varied':
+    default:
+      return 'medium';
+  }
+}
+
 export interface CrawledPageContent {
   url: string;
   title: string;
@@ -209,10 +286,10 @@ export async function extractBrandProfile(
       tone_empathy: analysis.toneEmpathy,
 
       // Style
-      sentence_structure: analysis.sentenceStructure,
-      paragraph_length: analysis.paragraphLength,
-      vocabulary_level: analysis.vocabularyLevel,
-      preferred_pov: analysis.preferredPov,
+      sentence_structure: mapSentenceStructureToDatabase(analysis.sentenceStructure),
+      paragraph_length: mapParagraphLengthToDatabase(analysis.paragraphLength),
+      vocabulary_level: mapVocabularyToDatabase(analysis.vocabularyLevel),
+      preferred_pov: mapPovToDatabase(analysis.preferredPov),
 
       // Terminology
       power_words: analysis.powerWords,

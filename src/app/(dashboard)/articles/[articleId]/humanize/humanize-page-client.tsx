@@ -250,77 +250,79 @@ export function HumanizePageClient({ article }: HumanizePageClientProps) {
   );
 
   return (
-    <div className="flex h-[calc(100vh-8rem)]">
+    <div className="relative">
       {/* Content Panel */}
-      <div className="flex-1 overflow-y-auto border-r p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">
-              {showHumanized ? "Humanized Content" : "Article Content"}
-            </h2>
-            {showHumanized && (
-              <p className="text-sm text-muted-foreground">
-                Review the humanized version below
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {!showHumanized && (
-              <>
-                <span className="size-3 rounded bg-orange-200 dark:bg-orange-900/50" />
-                <span className="text-sm text-muted-foreground">AI Pattern Detected</span>
-              </>
-            )}
-            {showHumanized && (
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowHumanized(false)}
-                >
-                  View Original
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={handleApplyHumanized}
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Save className="size-4" />
-                  )}
-                  Apply Changes
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <article className="prose prose-sm max-w-none dark:prose-invert">
-          <h1>{article.title}</h1>
-          <div className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-muted-foreground">
-            {isHumanizing ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-primary">
-                  <Loader2 className="size-4 animate-spin" />
-                  <span>Humanizing content...</span>
+      <div className="mr-[360px] min-h-[calc(100vh-8rem)] p-6">
+        <div className="mx-auto max-w-3xl">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">
+                {showHumanized ? "Humanized Content" : "Article Content"}
+              </h2>
+              {showHumanized && (
+                <p className="text-sm text-muted-foreground">
+                  Review the humanized version below
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {!showHumanized && (
+                <>
+                  <span className="size-3 rounded bg-orange-200 dark:bg-orange-900/50" />
+                  <span className="text-sm text-muted-foreground">AI Pattern Detected</span>
+                </>
+              )}
+              {showHumanized && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowHumanized(false)}
+                  >
+                    View Original
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleApplyHumanized}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Save className="size-4" />
+                    )}
+                    Apply Changes
+                  </Button>
                 </div>
-                {humanizedContent && (
-                  <div className="rounded-lg border bg-muted/50 p-4">
-                    {humanizedContent}
-                  </div>
-                )}
-              </div>
-            ) : (
-              highlightedContent
-            )}
+              )}
+            </div>
           </div>
-        </article>
+
+          <article className="prose prose-sm dark:prose-invert">
+            <h1>{article.title}</h1>
+            <div className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+              {isHumanizing ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-primary">
+                    <Loader2 className="size-4 animate-spin" />
+                    <span>Humanizing content...</span>
+                  </div>
+                  {humanizedContent && (
+                    <div className="rounded-lg border bg-muted/50 p-4">
+                      {humanizedContent}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                highlightedContent
+              )}
+            </div>
+          </article>
+        </div>
       </div>
 
-      {/* Sidebar */}
-      <aside className="w-[400px] shrink-0 overflow-hidden bg-muted/30">
+      {/* Right sidebar - fixed to right edge */}
+      <aside className="fixed right-0 top-[8rem] h-[calc(100vh-8rem)] w-[360px] overflow-hidden border-l bg-background shadow-sm">
         <div className="flex h-full flex-col">
           {/* Score Section */}
           <div className="border-b p-6">
