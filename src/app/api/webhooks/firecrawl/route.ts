@@ -113,14 +113,25 @@ export async function POST(request: NextRequest) {
       case 'crawl.page':
         // Store individual crawled page
         if (payload.data && payload.data.length > 0) {
-          const page = payload.data[0];
+          const page = payload.data[0] as Record<string, unknown>;
+
+          // Firecrawl may send URL in different fields
+          const pageUrl = (page.url || page.sourceURL || (page.metadata as Record<string, unknown>)?.sourceURL || (page.metadata as Record<string, unknown>)?.url) as string | undefined;
+
+          if (!pageUrl) {
+            console.error('[Firecrawl Webhook] Page missing URL, skipping. Keys:', Object.keys(page));
+            break;
+          }
+
+          const pageMarkdown = page.markdown as string | undefined;
+          const pageMetadata = page.metadata as Record<string, unknown> | undefined;
 
           // Cache the page content
-          if (page.markdown) {
-            await cacheCrawledPage(page.url, {
-              markdown: page.markdown,
-              title: page.metadata?.title,
-              description: page.metadata?.description,
+          if (pageMarkdown) {
+            await cacheCrawledPage(pageUrl, {
+              markdown: pageMarkdown,
+              title: pageMetadata?.title as string | undefined,
+              description: pageMetadata?.description as string | undefined,
               crawledAt: new Date().toISOString(),
             });
           }
@@ -131,13 +142,13 @@ export async function POST(request: NextRequest) {
             .upsert({
               brand_id: brandId,
               crawl_job_id: crawlJobId,
-              url: page.url,
-              title: page.metadata?.title || null,
-              meta_description: page.metadata?.description || null,
-              markdown_content: page.markdown || null,
-              plain_text: page.markdown?.replace(/[#*_`\[\]()]/g, '') || null,
-              content_hash: page.markdown ? hashContent(page.markdown) : null,
-              key_topics: page.markdown ? extractKeyTopics(page.markdown) : [],
+              url: pageUrl,
+              title: (pageMetadata?.title as string) || null,
+              meta_description: (pageMetadata?.description as string) || null,
+              markdown_content: pageMarkdown || null,
+              plain_text: pageMarkdown?.replace(/[#*_`\[\]()]/g, '') || null,
+              content_hash: pageMarkdown ? hashContent(pageMarkdown) : null,
+              key_topics: pageMarkdown ? extractKeyTopics(pageMarkdown) : [],
               crawled_at: new Date().toISOString(),
               is_active: true,
             }, {
