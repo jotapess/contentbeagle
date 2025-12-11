@@ -5,6 +5,7 @@ import * as React from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -23,7 +24,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
         <main className="flex-1 overflow-auto">
           <div className="max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-            {children}
+            <ErrorBoundary>
+              {children}
+            </ErrorBoundary>
           </div>
         </main>
       </div>
