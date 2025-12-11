@@ -79,15 +79,24 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Firecrawl Webhook] Received event: ${payload.type}, Job ID: ${payload.id}`);
 
-    // Get metadata from webhook
-    const { crawlJobId, brandId, teamId } = payload.metadata || {};
+    const supabase = createAdminClient();
 
-    if (!crawlJobId || !brandId) {
-      console.error('[Firecrawl Webhook] Missing required metadata');
-      return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
+    // Look up our crawl job by Firecrawl's job ID
+    // Firecrawl doesn't reliably return our metadata, so we use the firecrawl_job_id column
+    const { data: crawlJob, error: lookupError } = await supabase
+      .from('crawl_jobs')
+      .select('id, brand_id, brands(team_id)')
+      .eq('firecrawl_job_id', payload.id)
+      .single();
+
+    if (lookupError || !crawlJob) {
+      console.error('[Firecrawl Webhook] Could not find crawl job for Firecrawl ID:', payload.id);
+      return NextResponse.json({ error: 'Crawl job not found' }, { status: 404 });
     }
 
-    const supabase = createAdminClient();
+    const crawlJobId = crawlJob.id;
+    const brandId = crawlJob.brand_id;
+    const teamId = (crawlJob.brands as { team_id: string } | null)?.team_id;
 
     switch (payload.type) {
       case 'crawl.started':
