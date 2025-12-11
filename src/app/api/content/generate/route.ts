@@ -1,38 +1,52 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { createAIService, getDefaultModel } from "@/lib/ai";
-import { loadBrandContext } from "@/lib/ai/brand-context";
-import { buildContentGenerationPrompt, type ContentGenerationInput } from "@/lib/ai/prompts";
-import { getDecryptedAPIKeys } from "@/lib/actions/api-keys";
+/**
+ * Content Generation API Route
+ *
+ * Streaming endpoint for AI content generation with brand context.
+ */
 
-export const runtime = "nodejs";
+import { NextRequest } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { createAIService, getDefaultModel } from '@/lib/ai';
+import { getDecryptedAPIKeys } from '@/lib/actions/api-keys';
+import { loadBrandContext } from '@/lib/ai/brand-context';
+import {
+  buildContentGenerationPrompt,
+  type InputType,
+  type ArticleLength,
+} from '@/lib/ai/prompts/content-generation';
+
+export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-export async function POST(request: Request) {
+interface GenerateRequest {
+  brandId: string;
+  inputType: InputType;
+  content: string;
+  topic?: string;
+  targetAudience?: string;
+  articleLength: ArticleLength;
+  cta?: string;
+  seoKeywords?: string[];
+  model?: string;
+}
+
+export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
 
     // Verify authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
+    console.log('[generate] Auth check:', { user: user?.id, error: authError?.message });
     if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return new Response(JSON.stringify({ error: 'Unauthorized', details: authError?.message }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
-
-    // Get user's profile for team context
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("default_team_id")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile?.default_team_id) {
-      return NextResponse.json({ error: "No team found" }, { status: 400 });
-    }
-
-    const teamId = profile.default_team_id;
 
     // Parse request body
-    const body = await request.json();
+    const body: GenerateRequest = await request.json();
+    console.log('[generate] Request body:', JSON.stringify(body, null, 2));
     const {
       brandId,
       inputType,
@@ -42,101 +56,97 @@ export async function POST(request: Request) {
       articleLength,
       cta,
       seoKeywords,
-      model: requestedModel,
-    } = body as ContentGenerationInput & { brandId: string; model?: string };
+      model,
+    } = body;
 
     // Validate required fields
-    if (!brandId || !inputType || !topic || !targetAudience) {
-      return NextResponse.json(
-        { error: "Missing required fields: brandId, inputType, topic, targetAudience" },
-        { status: 400 }
+    // For topic_only mode, content can be empty (we use topic instead)
+    const effectiveContent = content || (inputType === 'topic_only' ? topic : '');
+    if (!brandId || !inputType || !effectiveContent) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required fields: brandId, inputType, and content (or topic for topic_only mode)' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get user's team
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('default_team_id')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile?.default_team_id) {
+      return new Response(
+        JSON.stringify({ error: 'No team found' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get API keys
+    const { data: apiKeys, error: keysError } = await getDecryptedAPIKeys(profile.default_team_id);
+    if (keysError || !apiKeys) {
+      return new Response(
+        JSON.stringify({ error: keysError || 'Failed to retrieve API keys' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!apiKeys.openai && !apiKeys.anthropic && !apiKeys.google) {
+      return new Response(
+        JSON.stringify({ error: 'No AI API keys configured. Please add an API key in Settings.' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
     // Load brand context
-    const { data: brandContext, error: brandError } = await loadBrandContext(brandId);
-    if (brandError || !brandContext) {
-      return NextResponse.json(
-        { error: brandError || "Brand not found" },
-        { status: 404 }
+    const brandContext = await loadBrandContext(brandId);
+    if (!brandContext) {
+      return new Response(
+        JSON.stringify({ error: 'Brand not found' }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // Get API keys for the team
-    const { data: apiKeys, error: keysError } = await getDecryptedAPIKeys(teamId);
-    if (keysError || !apiKeys || (!apiKeys.openai && !apiKeys.anthropic && !apiKeys.google)) {
-      return NextResponse.json(
-        { error: "No AI provider configured. Please add an API key in Settings." },
-        { status: 400 }
-      );
-    }
-
-    // Determine which model to use
-    const defaultModel = getDefaultModel(apiKeys);
-    const modelToUse = requestedModel || defaultModel;
-
-    if (!modelToUse) {
-      return NextResponse.json(
-        { error: "No AI model available" },
-        { status: 400 }
-      );
-    }
-
-    // Build the prompt
-    const generationInput: ContentGenerationInput = {
+    // Build prompts
+    const { systemPrompt, userPrompt } = buildContentGenerationPrompt({
       inputType,
-      content: content || "",
+      content: effectiveContent,
       topic,
-      targetAudience,
-      articleLength: articleLength || "medium",
+      targetAudience: targetAudience || brandContext.targetAudience,
+      articleLength,
       cta,
       seoKeywords,
-    };
+      brandVoice: brandContext.brandVoice,
+      brandName: brandContext.brandName,
+    });
 
-    const seoData = seoKeywords?.length
-      ? {
-          primaryKeywords: seoKeywords.slice(0, 3).map((k) => ({ keyword: k })),
-          secondaryKeywords: seoKeywords.slice(3, 6).map((k) => ({ keyword: k })),
-        }
-      : undefined;
+    // Get default model or use specified
+    const selectedModel = model || getDefaultModel(apiKeys);
+    if (!selectedModel) {
+      return new Response(
+        JSON.stringify({ error: 'No compatible AI model available' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
-    const { system, user: userPrompt } = buildContentGenerationPrompt(
-      generationInput,
-      brandContext.profile,
-      seoData
-    );
-
-    // Create AI service and generate
-    const aiService = createAIService(apiKeys, modelToUse);
-
-    // Use streaming for better UX
-    const stream = aiService.getTextStream({
+    // Create AI service and stream
+    const aiService = createAIService(apiKeys, selectedModel);
+    const result = aiService.getTextStream({
+      systemPrompt,
       prompt: userPrompt,
-      systemPrompt: system,
-      model: modelToUse,
-      maxTokens: getMaxTokensForLength(articleLength || "medium"),
+      model: selectedModel,
+      maxTokens: 4000,
       temperature: 0.7,
     });
 
-    // Return streaming response
-    return stream.toTextStreamResponse();
+    // Return streaming response using AI SDK helper
+    return result.toTextStreamResponse();
   } catch (error) {
-    console.error("Content generation error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Generation failed" },
-      { status: 500 }
+    console.error('Content generation error:', error);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
-}
-
-function getMaxTokensForLength(length: "short" | "medium" | "long" | number): number {
-  if (typeof length === "number") {
-    // Rough estimate: 1.3 tokens per word
-    return Math.ceil(length * 1.3);
-  }
-  return {
-    short: 2000,
-    medium: 4000,
-    long: 8000,
-  }[length];
 }

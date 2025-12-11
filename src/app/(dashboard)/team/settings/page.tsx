@@ -16,7 +16,15 @@ import {
   Sparkles,
 } from "lucide-react";
 
-import { currentTeam, currentUser, mockTeamMembers } from "@/lib/mock-data";
+import { useAuth } from "@/components/providers/auth-provider";
+import {
+  getUserTeams,
+  getTeam,
+  getTeamMembers,
+  updateTeam,
+  deleteTeam,
+  removeMember,
+} from "@/lib/actions";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +47,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+
+interface Team {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  owner_id: string;
+  created_at: string | null;
+}
 
 const planFeatures: Record<
   string,
@@ -84,41 +101,124 @@ const planFeatures: Record<
 
 export default function TeamSettingsPage() {
   const router = useRouter();
-  const [teamName, setTeamName] = React.useState(currentTeam.name);
+  const { user } = useAuth();
+  const [team, setTeam] = React.useState<Team | null>(null);
+  const [teamName, setTeamName] = React.useState("");
+  const [originalName, setOriginalName] = React.useState("");
+  const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
   const [showLeaveDialog, setShowLeaveDialog] = React.useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = React.useState("");
   const [isLeaving, setIsLeaving] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [isOwner, setIsOwner] = React.useState(false);
+  const [currentMemberId, setCurrentMemberId] = React.useState<string | null>(null);
 
-  const currentMember = mockTeamMembers.find(
-    (m) => m.userId === currentUser.id
-  );
-  const isOwner = currentMember?.role === "owner";
+  React.useEffect(() => {
+    async function loadData() {
+      setIsLoading(true);
 
-  const currentPlan = planFeatures[currentTeam.plan];
+      const teamsResult = await getUserTeams();
+      if (!teamsResult.data || teamsResult.data.length === 0) {
+        setIsLoading(false);
+        return;
+      }
+
+      const currentTeam = teamsResult.data[0];
+      const teamResult = await getTeam(currentTeam.id);
+      if (teamResult.data) {
+        setTeam(teamResult.data);
+        setTeamName(teamResult.data.name);
+        setOriginalName(teamResult.data.name);
+        setIsOwner(teamResult.data.owner_id === user?.id);
+      }
+
+      // Get current member ID for leave team functionality
+      const membersResult = await getTeamMembers(currentTeam.id);
+      if (membersResult.data) {
+        const members = membersResult.data as unknown as Array<{
+          id: string;
+          user: { id: string } | null;
+        }>;
+        const currentMember = members.find(
+          (m) => m.user?.id === user?.id
+        );
+        if (currentMember) {
+          setCurrentMemberId(currentMember.id);
+        }
+      }
+
+      setIsLoading(false);
+    }
+
+    if (user) {
+      loadData();
+    }
+  }, [user]);
+
+  const currentPlan = team ? planFeatures[team.plan] || planFeatures.free : planFeatures.free;
 
   async function handleSaveChanges() {
+    if (!team) return;
+
     setIsSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const result = await updateTeam(team.id, { name: teamName });
+
+    if (result.data) {
+      setOriginalName(teamName);
+      setTeam({ ...team, name: teamName });
+    }
+
     setIsSaving(false);
   }
 
   async function handleLeaveTeam() {
+    if (!currentMemberId) return;
+
     setIsLeaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    router.push("/dashboard");
+    const result = await removeMember(currentMemberId);
+
+    if (result.success) {
+      router.push("/onboarding");
+    }
+
+    setIsLeaving(false);
   }
 
   async function handleDeleteTeam() {
+    if (!team) return;
+
     setIsDeleting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    router.push("/dashboard");
+    const result = await deleteTeam(team.id);
+
+    if (result.success) {
+      router.push("/onboarding");
+    }
+
+    setIsDeleting(false);
   }
 
-  const canDelete =
-    deleteConfirmation.toLowerCase() === currentTeam.name.toLowerCase();
+  const canDelete = team && deleteConfirmation.toLowerCase() === team.name.toLowerCase();
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!team) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-4">
+        <p className="text-muted-foreground">No team found</p>
+        <Button asChild>
+          <Link href="/onboarding">Create a Team</Link>
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -163,7 +263,7 @@ export default function TeamSettingsPage() {
                 <Label htmlFor="team-slug">Team Slug</Label>
                 <Input
                   id="team-slug"
-                  value={currentTeam.slug}
+                  value={team.slug}
                   disabled
                   className="bg-muted"
                 />
@@ -176,18 +276,20 @@ export default function TeamSettingsPage() {
                 <Label>Created</Label>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Calendar className="size-4" />
-                  {new Date(currentTeam.createdAt).toLocaleDateString("en-US", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
+                  {team.created_at
+                    ? new Date(team.created_at).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })
+                    : "-"}
                 </div>
               </div>
 
               <div className="flex justify-end">
                 <Button
                   onClick={handleSaveChanges}
-                  disabled={isSaving || teamName === currentTeam.name}
+                  disabled={isSaving || teamName === originalName}
                 >
                   {isSaving ? (
                     <>
@@ -221,7 +323,7 @@ export default function TeamSettingsPage() {
                     Your current plan
                   </p>
                 </div>
-                {currentTeam.plan !== "enterprise" && (
+                {team.plan !== "enterprise" && (
                   <Button>
                     <Sparkles className="size-4" />
                     Upgrade
@@ -244,7 +346,7 @@ export default function TeamSettingsPage() {
                 </ul>
               </div>
 
-              {currentTeam.plan !== "free" && (
+              {team.plan !== "free" && (
                 <>
                   <Separator />
                   <div className="flex items-center justify-between text-sm">
@@ -294,7 +396,7 @@ export default function TeamSettingsPage() {
                       <DialogHeader>
                         <DialogTitle>Leave Team</DialogTitle>
                         <DialogDescription>
-                          Are you sure you want to leave {currentTeam.name}? You
+                          Are you sure you want to leave {team.name}? You
                           will lose access to all team resources.
                         </DialogDescription>
                       </DialogHeader>
@@ -371,7 +473,7 @@ export default function TeamSettingsPage() {
 
                         <div className="space-y-2">
                           <Label htmlFor="confirm">
-                            Type <strong>{currentTeam.name}</strong> to confirm
+                            Type <strong>{team.name}</strong> to confirm
                           </Label>
                           <Input
                             id="confirm"
@@ -379,7 +481,7 @@ export default function TeamSettingsPage() {
                             onChange={(e) =>
                               setDeleteConfirmation(e.target.value)
                             }
-                            placeholder={currentTeam.name}
+                            placeholder={team.name}
                           />
                         </div>
                       </div>
@@ -427,7 +529,7 @@ export default function TeamSettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {Object.entries(planFeatures).map(([key, plan]) => {
-                const isCurrent = key === currentTeam.plan;
+                const isCurrent = key === team.plan;
                 return (
                   <div
                     key={key}

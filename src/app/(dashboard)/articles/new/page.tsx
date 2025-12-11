@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAIGeneration } from "@/hooks/use-ai-generation";
-import { getBrands, createArticle, updateArticleContent, getProfile } from "@/lib/actions";
+import { getBrands, createArticle, updateArticleContent, getProfile, getUserTeams, setDefaultTeam } from "@/lib/actions";
 
 type ArticleInputType = "bullets" | "draft" | "research" | "topic_only";
 type TargetLength = "short" | "medium" | "long";
@@ -115,22 +115,36 @@ export default function NewArticlePage() {
 
   const selectedInputType = inputTypeOptions.find((o) => o.value === inputType);
   const selectedBrand = brands.find((b) => b.id === brandId);
-  const readyBrands = brands.filter((b) => b.status === "ready");
+  // Show all brands for now (later: filter by status === "ready")
+  const readyBrands = brands;
 
   const canGenerate = brandId && (content.trim() || inputType === "topic_only") && topic.trim();
 
   // Load brands on mount
   React.useEffect(() => {
     async function loadData() {
+      let currentTeamId: string | null = null;
+
       const { data: profile } = await getProfile();
-      if (!profile?.default_team_id) {
+      currentTeamId = profile?.default_team_id || null;
+
+      // If no default team, try to get from user's teams
+      if (!currentTeamId) {
+        const { data: teams } = await getUserTeams();
+        if (teams && teams.length > 0) {
+          currentTeamId = teams[0].id;
+          await setDefaultTeam(currentTeamId);
+        }
+      }
+
+      if (!currentTeamId) {
         setIsLoadingBrands(false);
         return;
       }
 
-      setTeamId(profile.default_team_id);
+      setTeamId(currentTeamId);
 
-      const { data: brandsData } = await getBrands(profile.default_team_id);
+      const { data: brandsData } = await getBrands(currentTeamId);
       if (brandsData) {
         setBrands(brandsData);
       }

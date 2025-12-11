@@ -11,10 +11,17 @@ import {
   Pencil,
   Eye,
   UserMinus,
+  Loader2,
 } from "lucide-react";
 
-import type { TeamMember } from "@/types";
-import { mockTeamMembers, currentTeam, currentUser } from "@/lib/mock-data";
+import { useAuth } from "@/components/providers/auth-provider";
+import {
+  getUserTeams,
+  getTeam,
+  getTeamMembers,
+  updateMemberRole,
+  removeMember,
+} from "@/lib/actions";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -59,8 +66,34 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 
+type MemberRole = "owner" | "admin" | "editor" | "viewer";
+
+interface TeamMemberWithUser {
+  id: string;
+  role: MemberRole;
+  joined_at: string;
+  invited_at: string | null;
+  user: {
+    id: string;
+    email: string;
+    full_name: string | null;
+    avatar_url: string | null;
+  } | null;
+}
+
+interface Team {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  owner_id: string;
+  settings: unknown;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 const roleConfig: Record<
-  TeamMember["role"],
+  MemberRole,
   { label: string; icon: React.ElementType; className: string }
 > = {
   owner: {
@@ -117,11 +150,11 @@ function MemberRow({
   onChangeRole,
   onRemove,
 }: {
-  member: TeamMember;
+  member: TeamMemberWithUser;
   isCurrentUser: boolean;
   canManage: boolean;
-  onChangeRole: (member: TeamMember) => void;
-  onRemove: (member: TeamMember) => void;
+  onChangeRole: (member: TeamMemberWithUser) => void;
+  onRemove: (member: TeamMemberWithUser) => void;
 }) {
   const roleInfo = roleConfig[member.role];
   const RoleIcon = roleInfo.icon;
@@ -133,14 +166,14 @@ function MemberRow({
         <div className="flex items-center gap-3">
           <Avatar className="size-10">
             <AvatarImage
-              src={user?.avatarUrl ?? undefined}
-              alt={user?.fullName ?? "User"}
+              src={user?.avatar_url ?? undefined}
+              alt={user?.full_name ?? "User"}
             />
-            <AvatarFallback>{getInitials(user?.fullName ?? null)}</AvatarFallback>
+            <AvatarFallback>{getInitials(user?.full_name ?? null)}</AvatarFallback>
           </Avatar>
           <div>
             <p className="font-medium">
-              {user?.fullName}
+              {user?.full_name || user?.email?.split("@")[0] || "Unknown"}
               {isCurrentUser && (
                 <span className="ml-2 text-xs text-muted-foreground">(you)</span>
               )}
@@ -156,7 +189,7 @@ function MemberRow({
         </Badge>
       </TableCell>
       <TableCell className="text-muted-foreground">
-        {new Date(member.joinedAt).toLocaleDateString()}
+        {new Date(member.joined_at).toLocaleDateString()}
       </TableCell>
       <TableCell>
         {canManage && member.role !== "owner" && !isCurrentUser && (
@@ -191,36 +224,107 @@ function MemberRow({
 }
 
 export default function TeamPage() {
-  const [members, setMembers] = React.useState<TeamMember[]>(mockTeamMembers);
+  const { user } = useAuth();
+  const [members, setMembers] = React.useState<TeamMemberWithUser[]>([]);
+  const [team, setTeam] = React.useState<Team | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
   const [roleDialogMember, setRoleDialogMember] =
-    React.useState<TeamMember | null>(null);
+    React.useState<TeamMemberWithUser | null>(null);
   const [removeDialogMember, setRemoveDialogMember] =
-    React.useState<TeamMember | null>(null);
+    React.useState<TeamMemberWithUser | null>(null);
   const [selectedRole, setSelectedRole] =
-    React.useState<TeamMember["role"]>("editor");
+    React.useState<MemberRole>("editor");
+  const [isSaving, setIsSaving] = React.useState(false);
 
-  const currentMember = members.find((m) => m.userId === currentUser.id);
+  // Load team and members
+  React.useEffect(() => {
+    async function loadData() {
+      setIsLoading(true);
+
+      // Get user's teams
+      const teamsResult = await getUserTeams();
+      if (!teamsResult.data || teamsResult.data.length === 0) {
+        setIsLoading(false);
+        return;
+      }
+
+      // Use the first team (default team)
+      const currentTeam = teamsResult.data[0];
+      const teamResult = await getTeam(currentTeam.id);
+      if (teamResult.data) {
+        setTeam(teamResult.data);
+      }
+
+      // Get team members
+      const membersResult = await getTeamMembers(currentTeam.id);
+      if (membersResult.data) {
+        setMembers(membersResult.data as unknown as TeamMemberWithUser[]);
+      }
+
+      setIsLoading(false);
+    }
+
+    loadData();
+  }, []);
+
+  const currentMember = members.find((m) => m.user?.id === user?.id);
   const isOwnerOrAdmin =
     currentMember?.role === "owner" || currentMember?.role === "admin";
 
-  const plan = planConfig[currentTeam.plan];
+  const plan = team ? planConfig[team.plan] || planConfig.free : planConfig.free;
 
-  function handleRoleChange() {
+  async function handleRoleChange() {
     if (!roleDialogMember) return;
 
-    setMembers((prev) =>
-      prev.map((m) =>
-        m.id === roleDialogMember.id ? { ...m, role: selectedRole } : m
-      )
+    setIsSaving(true);
+    const result = await updateMemberRole(
+      roleDialogMember.id,
+      selectedRole as "admin" | "editor" | "viewer"
     );
+
+    if (result.success) {
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.id === roleDialogMember.id ? { ...m, role: selectedRole } : m
+        )
+      );
+    }
+
+    setIsSaving(false);
     setRoleDialogMember(null);
   }
 
-  function handleRemoveMember() {
+  async function handleRemoveMember() {
     if (!removeDialogMember) return;
 
-    setMembers((prev) => prev.filter((m) => m.id !== removeDialogMember.id));
+    setIsSaving(true);
+    const result = await removeMember(removeDialogMember.id);
+
+    if (result.success) {
+      setMembers((prev) => prev.filter((m) => m.id !== removeDialogMember.id));
+    }
+
+    setIsSaving(false);
     setRemoveDialogMember(null);
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!team) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-4">
+        <p className="text-muted-foreground">No team found</p>
+        <Button asChild>
+          <Link href="/onboarding">Create a Team</Link>
+        </Button>
+      </div>
+    );
   }
 
   return (
@@ -230,7 +334,7 @@ export default function TeamPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight">
-                {currentTeam.name}
+                {team.name}
               </h1>
               <Badge variant="outline" className={cn("text-xs", plan.className)}>
                 {plan.label}
@@ -302,7 +406,7 @@ export default function TeamPage() {
           <CardHeader className="pb-2">
             <CardDescription>Plan</CardDescription>
             <CardTitle className="text-3xl capitalize">
-              {currentTeam.plan}
+              {team.plan}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -335,7 +439,7 @@ export default function TeamPage() {
                 <MemberRow
                   key={member.id}
                   member={member}
-                  isCurrentUser={member.userId === currentUser.id}
+                  isCurrentUser={member.user?.id === user?.id}
                   canManage={isOwnerOrAdmin}
                   onChangeRole={(m) => {
                     setSelectedRole(m.role);
@@ -357,7 +461,7 @@ export default function TeamPage() {
           <DialogHeader>
             <DialogTitle>Change Role</DialogTitle>
             <DialogDescription>
-              Update the role for {roleDialogMember?.user?.fullName}
+              Update the role for {roleDialogMember?.user?.full_name || roleDialogMember?.user?.email}
             </DialogDescription>
           </DialogHeader>
 
@@ -366,7 +470,7 @@ export default function TeamPage() {
               <Label htmlFor="role">New Role</Label>
               <Select
                 value={selectedRole}
-                onValueChange={(v) => setSelectedRole(v as TeamMember["role"])}
+                onValueChange={(v) => setSelectedRole(v as MemberRole)}
               >
                 <SelectTrigger id="role">
                   <SelectValue />
@@ -411,7 +515,10 @@ export default function TeamPage() {
             <Button variant="outline" onClick={() => setRoleDialogMember(null)}>
               Cancel
             </Button>
-            <Button onClick={handleRoleChange}>Save Changes</Button>
+            <Button onClick={handleRoleChange} disabled={isSaving}>
+              {isSaving && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Save Changes
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -425,7 +532,7 @@ export default function TeamPage() {
             <DialogTitle>Remove Member</DialogTitle>
             <DialogDescription>
               Are you sure you want to remove{" "}
-              <strong>{removeDialogMember?.user?.fullName}</strong> from the
+              <strong>{removeDialogMember?.user?.full_name || removeDialogMember?.user?.email}</strong> from the
               team? They will lose access to all team resources.
             </DialogDescription>
           </DialogHeader>
@@ -437,7 +544,8 @@ export default function TeamPage() {
             >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleRemoveMember}>
+            <Button variant="destructive" onClick={handleRemoveMember} disabled={isSaving}>
+              {isSaving && <Loader2 className="mr-2 size-4 animate-spin" />}
               Remove Member
             </Button>
           </DialogFooter>

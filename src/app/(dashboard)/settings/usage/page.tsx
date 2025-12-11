@@ -10,10 +10,10 @@ import {
   Calendar,
   Clock,
   TrendingUp,
+  Loader2,
 } from "lucide-react";
 
-import type { AIUsageLog } from "@/types";
-import { mockUsageData, mockUsers, mockArticles, mockBrands } from "@/lib/mock-data";
+import { getUserTeams, getTeamUsage } from "@/lib/actions";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,69 +40,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-const extendedUsageData: AIUsageLog[] = [
-  ...mockUsageData,
-  {
-    id: "usage-4",
-    teamId: "team-1",
-    userId: "user-1",
-    provider: "openai",
-    model: "gpt-4o",
-    inputTokens: 1500,
-    outputTokens: 2000,
-    totalTokens: 3500,
-    feature: "seo_optimization",
-    articleId: "article-1",
-    brandId: "brand-1",
-    estimatedCost: 0.0175,
-    createdAt: "2024-03-06T15:30:00Z",
-  },
-  {
-    id: "usage-5",
-    teamId: "team-1",
-    userId: "user-2",
-    provider: "openai",
-    model: "gpt-4o",
-    inputTokens: 800,
-    outputTokens: 1200,
-    totalTokens: 2000,
-    feature: "brand_analysis",
-    articleId: null,
-    brandId: "brand-2",
-    estimatedCost: 0.01,
-    createdAt: "2024-03-05T10:00:00Z",
-  },
-  {
-    id: "usage-6",
-    teamId: "team-1",
-    userId: "user-1",
-    provider: "anthropic",
-    model: "claude-3-5-sonnet-20241022",
-    inputTokens: 2200,
-    outputTokens: 2800,
-    totalTokens: 5000,
-    feature: "content_generation",
-    articleId: "article-3",
-    brandId: "brand-2",
-    estimatedCost: 0.015,
-    createdAt: "2024-03-04T09:00:00Z",
-  },
-  {
-    id: "usage-7",
-    teamId: "team-1",
-    userId: "user-1",
-    provider: "openai",
-    model: "gpt-4o",
-    inputTokens: 500,
-    outputTokens: 800,
-    totalTokens: 1300,
-    feature: "cross_linking",
-    articleId: "article-2",
-    brandId: "brand-1",
-    estimatedCost: 0.0065,
-    createdAt: "2024-03-03T14:00:00Z",
-  },
-];
+interface UsageLog {
+  id: string;
+  team_id: string;
+  user_id: string | null;
+  provider: string;
+  model: string;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
+  feature: string;
+  article_id: string | null;
+  estimated_cost: number | null;
+  created_at: string | null;
+}
 
 const featureLabels: Record<string, { label: string; color: string }> = {
   content_generation: {
@@ -175,51 +126,83 @@ function UsageBar({
   );
 }
 
+function getDateRange(range: string): { startDate: string; endDate: string } {
+  const now = new Date();
+  const endDate = now.toISOString();
+  let startDate: Date;
+
+  switch (range) {
+    case "today":
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      break;
+    case "last_7_days":
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      break;
+    case "this_month":
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      break;
+    case "last_30_days":
+      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      break;
+    case "last_90_days":
+      startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+      break;
+    default:
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
+  return { startDate: startDate.toISOString(), endDate };
+}
+
 export default function UsagePage() {
   const [dateRange, setDateRange] = React.useState("this_month");
-  const [usageData] = React.useState<AIUsageLog[]>(extendedUsageData);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [usageData, setUsageData] = React.useState<UsageLog[]>([]);
+  const [totals, setTotals] = React.useState({
+    totalTokens: 0,
+    totalCost: 0,
+    requestCount: 0,
+    byProvider: {} as Record<string, { tokens: number; cost: number; count: number }>,
+    byOperation: {} as Record<string, { tokens: number; cost: number; count: number }>,
+  });
 
-  const stats = React.useMemo(() => {
-    const totalTokens = usageData.reduce((sum, u) => sum + u.totalTokens, 0);
-    const totalCost = usageData.reduce((sum, u) => sum + u.estimatedCost, 0);
-    const uniqueArticles = new Set(usageData.filter((u) => u.articleId).map((u) => u.articleId)).size;
+  React.useEffect(() => {
+    async function loadData() {
+      setIsLoading(true);
 
-    const byProvider: Record<string, { tokens: number; cost: number }> = {};
-    usageData.forEach((u) => {
-      if (!byProvider[u.provider]) {
-        byProvider[u.provider] = { tokens: 0, cost: 0 };
+      // Get user's team
+      const teamsResult = await getUserTeams();
+      if (!teamsResult.data || teamsResult.data.length === 0) {
+        setIsLoading(false);
+        return;
       }
-      byProvider[u.provider].tokens += u.totalTokens;
-      byProvider[u.provider].cost += u.estimatedCost;
-    });
 
-    const byFeature: Record<string, { count: number; tokens: number }> = {};
-    usageData.forEach((u) => {
-      if (!byFeature[u.feature]) {
-        byFeature[u.feature] = { count: 0, tokens: 0 };
+      const teamId = teamsResult.data[0].id;
+      const { startDate, endDate } = getDateRange(dateRange);
+
+      // Get usage data
+      const usageResult = await getTeamUsage(teamId, { startDate, endDate });
+      if (usageResult.data) {
+        setUsageData(usageResult.data.logs || []);
+        setTotals(usageResult.data.totals);
       }
-      byFeature[u.feature].count += 1;
-      byFeature[u.feature].tokens += u.totalTokens;
-    });
 
-    return { totalTokens, totalCost, uniqueArticles, byProvider, byFeature };
-  }, [usageData]);
+      setIsLoading(false);
+    }
 
-  function getUserName(userId: string): string {
-    const user = mockUsers.find((u) => u.id === userId);
-    return user?.fullName || "Unknown";
-  }
+    loadData();
+  }, [dateRange]);
 
-  function getArticleTitle(articleId: string | null): string {
-    if (!articleId) return "-";
-    const article = mockArticles.find((a) => a.id === articleId);
-    return article?.title || "Unknown";
-  }
+  const uniqueArticles = new Set(
+    usageData.filter((u) => u.article_id).map((u) => u.article_id)
+  ).size;
 
-  function getBrandName(brandId: string | null): string {
-    if (!brandId) return "-";
-    const brand = mockBrands.find((b) => b.id === brandId);
-    return brand?.name || "Unknown";
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
 
   return (
@@ -260,10 +243,10 @@ export default function UsagePage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              {formatNumber(stats.totalTokens)}
+              {formatNumber(totals.totalTokens)}
             </div>
             <p className="text-xs text-muted-foreground">
-              <span className="text-green-600">+12%</span> from last period
+              {totals.requestCount} API requests
             </p>
           </CardContent>
         </Card>
@@ -274,7 +257,7 @@ export default function UsagePage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              ${stats.totalCost.toFixed(2)}
+              ${totals.totalCost.toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground">
               Estimated based on provider rates
@@ -289,9 +272,9 @@ export default function UsagePage() {
             <FileText className="size-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{stats.uniqueArticles}</div>
+            <div className="text-3xl font-bold">{uniqueArticles}</div>
             <p className="text-xs text-muted-foreground">
-              Across {Object.keys(stats.byFeature).length} features
+              Across {Object.keys(totals.byOperation).length} features
             </p>
           </CardContent>
         </Card>
@@ -306,19 +289,19 @@ export default function UsagePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {Object.entries(stats.byProvider)
+            {Object.entries(totals.byProvider)
               .sort((a, b) => b[1].tokens - a[1].tokens)
               .map(([provider, data]) => (
                 <UsageBar
                   key={provider}
                   provider={provider}
-                  percentage={(data.tokens / stats.totalTokens) * 100}
+                  percentage={totals.totalTokens > 0 ? (data.tokens / totals.totalTokens) * 100 : 0}
                   tokens={data.tokens}
                   cost={data.cost}
                 />
               ))}
 
-            {Object.keys(stats.byProvider).length === 0 && (
+            {Object.keys(totals.byProvider).length === 0 && (
               <p className="text-center text-sm text-muted-foreground">
                 No usage data available
               </p>
@@ -335,7 +318,7 @@ export default function UsagePage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {Object.entries(stats.byFeature)
+              {Object.entries(totals.byOperation)
                 .sort((a, b) => b[1].tokens - a[1].tokens)
                 .map(([feature, data]) => {
                   const featureConfig = featureLabels[feature] || {
@@ -366,6 +349,12 @@ export default function UsagePage() {
                     </div>
                   );
                 })}
+
+              {Object.keys(totals.byOperation).length === 0 && (
+                <p className="text-center text-sm text-muted-foreground">
+                  No usage data available
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -384,78 +373,81 @@ export default function UsagePage() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>User</TableHead>
-                <TableHead>Feature</TableHead>
-                <TableHead>Provider</TableHead>
-                <TableHead>Model</TableHead>
-                <TableHead className="text-right">Tokens</TableHead>
-                <TableHead className="text-right">Cost</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {usageData
-                .sort(
-                  (a, b) =>
-                    new Date(b.createdAt).getTime() -
-                    new Date(a.createdAt).getTime()
-                )
-                .map((log) => {
-                  const featureConfig = featureLabels[log.feature] || {
-                    label: log.feature,
-                    color: "bg-gray-100 text-gray-700",
-                  };
+          {usageData.length === 0 ? (
+            <p className="py-8 text-center text-muted-foreground">
+              No usage data yet. Generate some content to see your usage here.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Feature</TableHead>
+                  <TableHead>Provider</TableHead>
+                  <TableHead>Model</TableHead>
+                  <TableHead className="text-right">Tokens</TableHead>
+                  <TableHead className="text-right">Cost</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {usageData
+                  .sort(
+                    (a, b) =>
+                      new Date(b.created_at || 0).getTime() -
+                      new Date(a.created_at || 0).getTime()
+                  )
+                  .slice(0, 20)
+                  .map((log) => {
+                    const featureConfig = featureLabels[log.feature] || {
+                      label: log.feature,
+                      color: "bg-gray-100 text-gray-700",
+                    };
 
-                  return (
-                    <TableRow key={log.id}>
-                      <TableCell className="whitespace-nowrap">
-                        <div className="flex items-center gap-1">
-                          <Clock className="size-3 text-muted-foreground" />
-                          <span className="text-sm">
-                            {new Date(log.createdAt).toLocaleDateString()}
+                    return (
+                      <TableRow key={log.id}>
+                        <TableCell className="whitespace-nowrap">
+                          <div className="flex items-center gap-1">
+                            <Clock className="size-3 text-muted-foreground" />
+                            <span className="text-sm">
+                              {log.created_at ? new Date(log.created_at).toLocaleDateString() : "-"}
+                            </span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {log.created_at ? new Date(log.created_at).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            }) : ""}
                           </span>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(log.createdAt).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm">{getUserName(log.userId)}</span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={cn("text-xs", featureConfig.color)}
-                        >
-                          {featureConfig.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span className="capitalize">{log.provider}</span>
-                      </TableCell>
-                      <TableCell>
-                        <code className="text-xs">{log.model}</code>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatNumber(log.totalTokens)}
-                        <span className="block text-xs text-muted-foreground">
-                          {formatNumber(log.inputTokens)}in / {formatNumber(log.outputTokens)}out
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        ${log.estimatedCost.toFixed(4)}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-            </TableBody>
-          </Table>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={cn("text-xs", featureConfig.color)}
+                          >
+                            {featureConfig.label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className="capitalize">{log.provider}</span>
+                        </TableCell>
+                        <TableCell>
+                          <code className="text-xs">{log.model}</code>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatNumber(log.total_tokens || 0)}
+                          <span className="block text-xs text-muted-foreground">
+                            {formatNumber(log.input_tokens || 0)}in / {formatNumber(log.output_tokens || 0)}out
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          ${(log.estimated_cost || 0).toFixed(4)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 

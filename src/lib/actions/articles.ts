@@ -265,14 +265,7 @@ export async function getArticleVersions(articleId: string) {
 
   const { data, error } = await supabase
     .from("article_versions")
-    .select(`
-      *,
-      profiles:changed_by (
-        id,
-        full_name,
-        avatar_url
-      )
-    `)
+    .select("*")
     .eq("article_id", articleId)
     .order("version_number", { ascending: false });
 

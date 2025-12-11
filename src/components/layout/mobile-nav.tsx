@@ -25,7 +25,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { TeamSwitcher } from "@/components/layout/team-switcher";
-import { currentUser } from "@/lib/mock-data";
+import { useAuth } from "@/components/providers/auth-provider";
 
 interface NavItem {
   title: string;
@@ -85,6 +85,11 @@ interface MobileNavProps {
 
 export function MobileNav({ open, onOpenChange }: MobileNavProps) {
   const pathname = usePathname();
+  const { user, signOut } = useAuth();
+
+  const fullName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
+  const avatarUrl = user?.user_metadata?.avatar_url;
+  const email = user?.email || "";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -136,17 +141,17 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
           <div className="flex items-center gap-3">
             <Avatar className="size-10">
               <AvatarImage
-                src={currentUser.avatarUrl ?? undefined}
-                alt={currentUser.fullName ?? "User"}
+                src={avatarUrl ?? undefined}
+                alt={fullName}
               />
               <AvatarFallback>
-                {getUserInitials(currentUser.fullName)}
+                {getUserInitials(fullName)}
               </AvatarFallback>
             </Avatar>
             <div className="flex flex-1 flex-col">
-              <span className="text-sm font-medium">{currentUser.fullName}</span>
+              <span className="text-sm font-medium">{fullName}</span>
               <span className="text-xs text-muted-foreground">
-                {currentUser.email}
+                {email}
               </span>
             </div>
           </div>
@@ -169,6 +174,7 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
             <Button
               variant="ghost"
               className="justify-start gap-3 px-3 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => signOut()}
             >
               <LogOut className="size-4" />
               Sign out

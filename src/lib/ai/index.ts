@@ -15,3 +15,26 @@ export {
   type GenerationResult,
   type StreamGenerationResult,
 } from "./generation-service";
+
+export {
+  detectPatterns,
+  groupMatchesByRule,
+  applyReplacement,
+  applyReplacements,
+  getNonOverlappingMatches,
+  type PatternRule,
+  type PatternMatch,
+  type DetectionResult,
+} from "./pattern-detector";
+
+export {
+  extractBrandProfile,
+  preparePages,
+  getRecommendedModelForExtraction,
+  estimateExtractionTokens,
+  MIN_PAGES_FOR_ANALYSIS,
+  MAX_CONTENT_PER_PAGE,
+  type CrawledPageContent,
+  type BrandExtractionInput,
+  type BrandExtractionResult,
+} from "./brand-extraction";

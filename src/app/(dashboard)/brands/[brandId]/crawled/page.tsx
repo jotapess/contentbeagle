@@ -17,8 +17,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { getBrandById, getCrawledPagesByBrand } from "@/lib/mock-data";
-import type { CrawledPage } from "@/types";
+import { getBrand, getCrawledPages } from "@/lib/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +30,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
+interface CrawledPage {
+  id: string;
+  brand_id: string;
+  url: string;
+  title: string | null;
+  content_type: string | null;
+  word_count: number | null;
+  summary: string | null;
+  key_topics: string[] | null;
+  target_keywords: string[] | null;
+  meta_description: string | null;
+  crawled_at: string | null;
+}
+
+interface Brand {
+  id: string;
+  name: string;
+}
 
 interface ExpandedRowProps {
   page: CrawledPage;
@@ -46,11 +64,11 @@ function ExpandedRowContent({ page }: ExpandedRowProps) {
         </div>
       )}
 
-      {page.keyTopics && page.keyTopics.length > 0 && (
+      {page.key_topics && page.key_topics.length > 0 && (
         <div>
           <h4 className="text-sm font-medium mb-2">Key Topics</h4>
           <div className="flex flex-wrap gap-1.5">
-            {page.keyTopics.map((topic, index) => (
+            {page.key_topics.map((topic, index) => (
               <Badge key={index} variant="secondary" className="text-xs">
                 {topic}
               </Badge>
@@ -59,11 +77,11 @@ function ExpandedRowContent({ page }: ExpandedRowProps) {
         </div>
       )}
 
-      {page.targetKeywords && page.targetKeywords.length > 0 && (
+      {page.target_keywords && page.target_keywords.length > 0 && (
         <div>
           <h4 className="text-sm font-medium mb-2">Target Keywords</h4>
           <div className="flex flex-wrap gap-1.5">
-            {page.targetKeywords.map((keyword, index) => (
+            {page.target_keywords.map((keyword, index) => (
               <Badge
                 key={index}
                 variant="outline"
@@ -76,10 +94,10 @@ function ExpandedRowContent({ page }: ExpandedRowProps) {
         </div>
       )}
 
-      {page.metaDescription && (
+      {page.meta_description && (
         <div>
           <h4 className="text-sm font-medium mb-1">Meta Description</h4>
-          <p className="text-sm text-muted-foreground">{page.metaDescription}</p>
+          <p className="text-sm text-muted-foreground">{page.meta_description}</p>
         </div>
       )}
 
@@ -102,12 +120,35 @@ export default function CrawledPagesPage() {
   const params = useParams();
   const brandId = params.brandId as string;
 
-  const brand = getBrandById(brandId);
-  const crawledPages = getCrawledPagesByBrand(brandId);
-
+  const [brand, setBrand] = React.useState<Brand | null>(null);
+  const [crawledPages, setCrawledPages] = React.useState<CrawledPage[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set());
   const [recrawlingIds, setRecrawlingIds] = React.useState<Set<string>>(new Set());
+
+  React.useEffect(() => {
+    async function loadData() {
+      setIsLoading(true);
+
+      const [brandResult, pagesResult] = await Promise.all([
+        getBrand(brandId),
+        getCrawledPages(brandId),
+      ]);
+
+      if (brandResult.data) {
+        setBrand(brandResult.data);
+      }
+
+      if (pagesResult.data) {
+        setCrawledPages(pagesResult.data);
+      }
+
+      setIsLoading(false);
+    }
+
+    loadData();
+  }, [brandId]);
 
   const filteredPages = React.useMemo(() => {
     if (!searchQuery.trim()) return crawledPages;
@@ -117,7 +158,7 @@ export default function CrawledPagesPage() {
       (page) =>
         page.url.toLowerCase().includes(query) ||
         page.title?.toLowerCase().includes(query) ||
-        page.contentType?.toLowerCase().includes(query)
+        page.content_type?.toLowerCase().includes(query)
     );
   }, [crawledPages, searchQuery]);
 
@@ -158,6 +199,14 @@ export default function CrawledPagesPage() {
     about: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
     service: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300",
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   if (!brand) {
     return (
@@ -211,7 +260,7 @@ export default function CrawledPagesPage() {
           <CardContent>
             <div className="text-2xl font-bold">
               {crawledPages
-                .reduce((acc, page) => acc + (page.wordCount || 0), 0)
+                .reduce((acc, page) => acc + (page.word_count || 0), 0)
                 .toLocaleString()}
             </div>
           </CardContent>
@@ -224,13 +273,13 @@ export default function CrawledPagesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {crawledPages.length > 0
+              {crawledPages.length > 0 && crawledPages[0].crawled_at
                 ? formatDate(
                     crawledPages.sort(
                       (a, b) =>
-                        new Date(b.crawledAt).getTime() -
-                        new Date(a.crawledAt).getTime()
-                    )[0].crawledAt
+                        new Date(b.crawled_at || 0).getTime() -
+                        new Date(a.crawled_at || 0).getTime()
+                    )[0].crawled_at!
                   )
                 : "Never"}
             </div>
@@ -313,24 +362,24 @@ export default function CrawledPagesPage() {
                         </div>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell">
-                        {page.contentType && (
+                        {page.content_type && (
                           <Badge
                             variant="secondary"
                             className={cn(
                               "text-xs capitalize",
-                              contentTypeColors[page.contentType] ||
+                              contentTypeColors[page.content_type] ||
                                 "bg-gray-100 text-gray-700"
                             )}
                           >
-                            {page.contentType}
+                            {page.content_type}
                           </Badge>
                         )}
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
-                        {page.wordCount?.toLocaleString() || "-"}
+                        {page.word_count?.toLocaleString() || "-"}
                       </TableCell>
                       <TableCell className="hidden lg:table-cell text-muted-foreground">
-                        {formatDate(page.crawledAt)}
+                        {page.crawled_at ? formatDate(page.crawled_at) : "-"}
                       </TableCell>
                       <TableCell>
                         <Button

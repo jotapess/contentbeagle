@@ -3,29 +3,36 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  Brain,
   Building2,
   FileText,
   Globe,
   Layers,
+  Loader2,
   Pencil,
+  RefreshCw,
   Settings,
+  Sparkles,
   TrendingUp,
-  User,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
-  getBrandById,
-  getBrandProfile,
-  getArticlesByBrand,
-  getCrawledPagesByBrand,
-} from "@/lib/mock-data";
+  getBrand,
+  getArticles,
+  getCrawledPages,
+  analyzeBrandVoice,
+  canAnalyzeBrand,
+  getCrawlJobs,
+} from "@/lib/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   pending: {
@@ -39,6 +46,10 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   analyzing: {
     label: "Analyzing",
     className: "bg-purple-100 text-purple-800 border-purple-200",
+  },
+  active: {
+    label: "Active",
+    className: "bg-green-100 text-green-800 border-green-200",
   },
   ready: {
     label: "Ready",
@@ -62,14 +73,132 @@ const articleStatusColors: Record<string, string> = {
   archived: "bg-slate-100 text-slate-700",
 };
 
+interface BrandData {
+  id: string;
+  name: string;
+  website_url: string | null;
+  logo_url: string | null;
+  industry: string | null;
+  description: string | null;
+  target_audience: string | null;
+  status: string;
+  team_id: string;
+  brand_profile?: {
+    voice_description: string | null;
+    confidence_score: number | null;
+    tone_formality: number | null;
+    tone_enthusiasm: number | null;
+  } | null;
+}
+
 export default function BrandOverviewPage() {
   const params = useParams();
+  const router = useRouter();
   const brandId = params.brandId as string;
 
-  const brand = getBrandById(brandId);
-  const profile = getBrandProfile(brandId);
-  const articles = getArticlesByBrand(brandId);
-  const crawledPages = getCrawledPagesByBrand(brandId);
+  const [brand, setBrand] = React.useState<BrandData | null>(null);
+  const [articles, setArticles] = React.useState<unknown[]>([]);
+  const [crawledPages, setCrawledPages] = React.useState<unknown[]>([]);
+  const [analysisStatus, setAnalysisStatus] = React.useState<{
+    canAnalyze: boolean;
+    pagesCount: number;
+    hasExistingProfile: boolean;
+  } | null>(null);
+  const [crawlJob, setCrawlJob] = React.useState<{
+    status: string;
+    progress?: number;
+    total?: number;
+  } | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [isAnalyzing, setIsAnalyzing] = React.useState(false);
+  const [analysisError, setAnalysisError] = React.useState<string | null>(null);
+  const [analysisSuccess, setAnalysisSuccess] = React.useState(false);
+
+  // Load data
+  const loadData = React.useCallback(async () => {
+    try {
+      const [brandResult, analysisCheck, crawlJobsResult] = await Promise.all([
+        getBrand(brandId),
+        canAnalyzeBrand(brandId),
+        getCrawlJobs(brandId),
+      ]);
+
+      if (brandResult.data) {
+        setBrand(brandResult.data as unknown as BrandData);
+
+        // Get articles and crawled pages using team_id
+        const [articlesResult, pagesResult] = await Promise.all([
+          getArticles(brandResult.data.team_id, { brandId, limit: 5 }),
+          getCrawledPages(brandId),
+        ]);
+
+        if (articlesResult.data) setArticles(articlesResult.data);
+        if (pagesResult.data) setCrawledPages(pagesResult.data);
+      }
+
+      setAnalysisStatus(analysisCheck);
+
+      // Check for active crawl job
+      if (crawlJobsResult.data && crawlJobsResult.data.length > 0) {
+        const activeJob = crawlJobsResult.data.find(
+          (job) => job.status === "pending" || job.status === "scraping"
+        );
+        if (activeJob) {
+          setCrawlJob({
+            status: activeJob.status,
+            progress: activeJob.pages_crawled || 0,
+            total: activeJob.max_pages || undefined,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error loading brand data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [brandId]);
+
+  React.useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Poll for updates if crawling
+  React.useEffect(() => {
+    if (crawlJob && (crawlJob.status === "pending" || crawlJob.status === "scraping")) {
+      const interval = setInterval(loadData, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [crawlJob, loadData]);
+
+  const handleAnalyzeBrand = async () => {
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+    setAnalysisSuccess(false);
+
+    try {
+      const result = await analyzeBrandVoice(brandId);
+
+      if (result.success) {
+        setAnalysisSuccess(true);
+        // Reload data to get updated profile
+        await loadData();
+      } else {
+        setAnalysisError(result.error || "Analysis failed");
+      }
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : "Unknown error");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   if (!brand) {
     return (
@@ -82,11 +211,13 @@ export default function BrandOverviewPage() {
     );
   }
 
-  const status = statusConfig[brand.status];
-  const recentArticles = articles.slice(0, 5);
-  const brandScore = profile?.confidenceScore != null
-    ? Math.round(profile.confidenceScore * 100)
+  const status = statusConfig[brand.status] || statusConfig.pending;
+  const brandScore = brand.brand_profile?.confidence_score != null
+    ? Math.round(brand.brand_profile.confidence_score * 100)
     : null;
+
+  const showAnalysisButton = analysisStatus?.canAnalyze && !crawlJob;
+  const showCrawlProgress = crawlJob && (crawlJob.status === "pending" || crawlJob.status === "scraping");
 
   return (
     <div className="space-y-6">
@@ -105,9 +236,9 @@ export default function BrandOverviewPage() {
       <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
           <div className="relative size-16 shrink-0 overflow-hidden rounded-xl bg-muted">
-            {brand.logoUrl ? (
+            {brand.logo_url ? (
               <Image
-                src={brand.logoUrl}
+                src={brand.logo_url}
                 alt={`${brand.name} logo`}
                 fill
                 className="object-cover"
@@ -130,15 +261,15 @@ export default function BrandOverviewPage() {
               </Badge>
             </div>
 
-            {brand.websiteUrl && (
+            {brand.website_url && (
               <a
-                href={brand.websiteUrl}
+                href={brand.website_url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
               >
                 <Globe className="size-4" />
-                {brand.websiteUrl.replace(/^https?:\/\//, "")}
+                {brand.website_url.replace(/^https?:\/\//, "")}
               </a>
             )}
 
@@ -165,6 +296,118 @@ export default function BrandOverviewPage() {
           </Button>
         </div>
       </div>
+
+      {/* Crawl Progress */}
+      {showCrawlProgress && (
+        <Alert>
+          <Loader2 className="size-4 animate-spin" />
+          <AlertTitle>Crawling Website</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <p>We&apos;re crawling your website to analyze your brand voice...</p>
+            {crawlJob.total && (
+              <div className="space-y-1">
+                <Progress
+                  value={((crawlJob.progress || 0) / crawlJob.total) * 100}
+                  className="h-2"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {crawlJob.progress || 0} of {crawlJob.total} pages crawled
+                </p>
+              </div>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Analysis Success */}
+      {analysisSuccess && (
+        <Alert className="border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-200">
+          <Sparkles className="size-4" />
+          <AlertTitle>Analysis Complete!</AlertTitle>
+          <AlertDescription>
+            Your brand voice has been analyzed. View your{" "}
+            <Link href={`/brands/${brandId}/profile`} className="font-medium underline underline-offset-2">
+              brand profile
+            </Link>{" "}
+            to see the results.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Analysis Error */}
+      {analysisError && (
+        <Alert variant="destructive">
+          <AlertTitle>Analysis Failed</AlertTitle>
+          <AlertDescription>{analysisError}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Brand Analysis Card */}
+      {showAnalysisButton && !brand.brand_profile?.voice_description && (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-8 text-center">
+            <Brain className="mb-4 size-12 text-muted-foreground" />
+            <h3 className="text-lg font-semibold">Ready for Brand Analysis</h3>
+            <p className="mt-2 max-w-md text-sm text-muted-foreground">
+              We&apos;ve crawled {analysisStatus.pagesCount} pages from your website.
+              Run AI analysis to extract your brand voice, tone, and style guidelines.
+            </p>
+            <Button
+              onClick={handleAnalyzeBrand}
+              disabled={isAnalyzing}
+              className="mt-4"
+            >
+              {isAnalyzing ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="size-4" />
+                  Analyze Brand Voice
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Re-analyze option if profile exists */}
+      {brand.brand_profile?.voice_description && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center justify-between text-base">
+              <span>Brand Voice Summary</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleAnalyzeBrand}
+                disabled={isAnalyzing}
+              >
+                {isAnalyzing ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="size-4" />
+                )}
+                Re-analyze
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              {brand.brand_profile.voice_description}
+            </p>
+            {brandScore !== null && (
+              <div className="mt-4 flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Confidence:</span>
+                <Progress value={brandScore} className="h-2 w-24" />
+                <span className="font-medium">{brandScore}%</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
@@ -220,13 +463,23 @@ export default function BrandOverviewPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {recentArticles.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                No articles yet
-              </p>
+            {articles.length === 0 ? (
+              <div className="py-6 text-center">
+                <p className="text-sm text-muted-foreground">No articles yet</p>
+                <Button asChild variant="link" className="mt-2">
+                  <Link href={`/articles/new?brand=${brandId}`}>
+                    Create your first article
+                  </Link>
+                </Button>
+              </div>
             ) : (
               <ul className="divide-y">
-                {recentArticles.map((article) => (
+                {(articles as Array<{
+                  id: string;
+                  title: string;
+                  word_count?: number;
+                  status: string;
+                }>).map((article) => (
                   <li key={article.id} className="py-3 first:pt-0 last:pb-0">
                     <Link
                       href={`/articles/${article.id}`}
@@ -237,7 +490,7 @@ export default function BrandOverviewPage() {
                           {article.title}
                         </p>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          {article.wordCount?.toLocaleString() || 0} words
+                          {article.word_count?.toLocaleString() || 0} words
                         </p>
                       </div>
                       <Badge
@@ -268,7 +521,7 @@ export default function BrandOverviewPage() {
               asChild
             >
               <Link href={`/brands/${brandId}/profile`}>
-                <User className="size-4" />
+                <Brain className="size-4" />
                 Brand Profile
               </Link>
             </Button>
@@ -303,11 +556,11 @@ export default function BrandOverviewPage() {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">{brand.description}</p>
-            {brand.targetAudience && (
+            {brand.target_audience && (
               <div className="mt-4">
                 <p className="text-sm font-medium">Target Audience</p>
                 <p className="text-sm text-muted-foreground">
-                  {brand.targetAudience}
+                  {brand.target_audience}
                 </p>
               </div>
             )}

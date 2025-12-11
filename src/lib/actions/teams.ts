@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import type { Tables, TablesInsert } from "@/types/database";
 
@@ -99,8 +99,28 @@ export async function createTeam(input: { name: string; slug: string }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { data: null, error: "Not authenticated" };
 
-  // Create the team
-  const { data: team, error: teamError } = await supabase
+  // Use admin client to bypass RLS for initial team creation
+  const adminClient = createAdminClient();
+
+  // First, ensure user has a profile (trigger may not have fired)
+  const { data: existingProfile } = await adminClient
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .single();
+
+  if (!existingProfile) {
+    // Create profile if it doesn't exist
+    await adminClient.from("profiles").insert({
+      id: user.id,
+      email: user.email || "",
+      full_name: user.user_metadata?.full_name || user.email?.split("@")[0] || "",
+      avatar_url: user.user_metadata?.avatar_url || null,
+    });
+  }
+
+  // Create the team using admin client to bypass RLS
+  const { data: team, error: teamError } = await adminClient
     .from("teams")
     .insert({
       name: input.name,
@@ -113,7 +133,7 @@ export async function createTeam(input: { name: string; slug: string }) {
   if (teamError) return { data: null, error: teamError.message };
 
   // Add user as owner member
-  const { error: memberError } = await supabase
+  const { error: memberError } = await adminClient
     .from("team_members")
     .insert({
       team_id: team.id,
@@ -124,7 +144,7 @@ export async function createTeam(input: { name: string; slug: string }) {
   if (memberError) return { data: null, error: memberError.message };
 
   // Update user's default team
-  await supabase
+  await adminClient
     .from("profiles")
     .update({ default_team_id: team.id })
     .eq("id", user.id);

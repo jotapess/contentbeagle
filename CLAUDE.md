@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Repository**: https://github.com/jotapess/contentbeagle
 
-### Current Status: Phase 1 COMPLETE - Phase 2 COMPLETE - Phase 3 COMPLETE
+### Current Status: Phase 1 COMPLETE - Phase 2 COMPLETE - Phase 3 COMPLETE - Phase 4 COMPLETE
 
 **Phase 1 (Frontend with Mock Data)** - COMPLETED December 2024
 - 27 routes built with Next.js 14+ App Router
@@ -34,6 +34,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Brand-aware content generation with live preview
 - Pattern detection with AI score calculation (0-100%)
 - Streaming humanization with brand voice injection
+
+**Phase 4 (External API Integrations)** - COMPLETED December 11, 2024
+- Issue #10, #11, #12 CLOSED - Firecrawl integration (client, API, UI)
+- Issue #13 CLOSED - DataForSEO integration with keyword research
+- Issue #14 CLOSED - Cross-linking intelligence engine
+- Firecrawl client with batch crawling, webhooks, and caching
+- DataForSEO client with search volume and related keywords
+- Keyword caching layer (30-day TTL in Supabase)
+- Cross-linking service with topic-based relevance scoring
+- All external API UIs connected to real data
 
 **Phase 6 (Mock Data Migration)** - CREATED December 10, 2024
 - Issues #27, #28, #29 created to address mixed mock/real data
@@ -455,29 +465,25 @@ GOOGLE_AI_API_KEY=   # Fallback for Google models
 - [ ] Sprint 3.4.1: Brand extraction prompt
 - [ ] Sprint 3.4.2: Brand discovery integration
 
-### Phase 4: External APIs (Weeks 10-13)
-**GitHub Issues**: #10, #11, #13, #14
+### Phase 4: External APIs (Weeks 10-13) - COMPLETED December 11, 2024
+**GitHub Issues**: #10, #11, #12, #13, #14 - ALL CLOSED
 
-**Milestone 4.1 - Firecrawl**:
-- [ ] Sprint 4.1.1: Firecrawl client wrapper
-- [ ] Sprint 4.1.2: Crawl job management
-- [ ] Sprint 4.1.3: Brand discovery UI integration
-- [ ] Sprint 4.1.4: Incremental crawling
+**Milestone 4.1 - Firecrawl (Issues #10, #11, #12)**:
+- [x] Sprint 4.1.1: Firecrawl client wrapper (`/src/lib/services/firecrawl/client.ts`)
+- [x] Sprint 4.1.2: Crawl job management (`/src/lib/actions/crawl.ts`)
+- [x] Sprint 4.1.3: Brand discovery UI integration (crawled pages panel)
+- [x] Sprint 4.1.4: Webhook handler (`/src/app/api/webhooks/firecrawl/route.ts`)
 
-**Milestone 4.2 - DataForSEO**:
-- [ ] Sprint 4.2.1: DataForSEO client wrapper
-- [ ] Sprint 4.2.2: SEO service & keyword opportunities
-- [ ] Sprint 4.2.3: SEO optimization UI
-- [ ] Sprint 4.2.4: Caching & cost optimization (Upstash Redis)
+**Milestone 4.2 - DataForSEO (Issue #13)**:
+- [x] Sprint 4.2.1: DataForSEO client wrapper (`/src/lib/services/dataforseo/client.ts`)
+- [x] Sprint 4.2.2: SEO service & keyword opportunities (`/src/lib/services/dataforseo/keywords.ts`)
+- [x] Sprint 4.2.3: SEO optimization UI (`seo-page-client.tsx`)
+- [x] Sprint 4.2.4: Caching with Supabase (`/src/lib/cache/keyword-cache.ts`)
 
-**Milestone 4.3 - Cross-Linking**:
-- [ ] Sprint 4.3.1: Page summary generation
-- [ ] Sprint 4.3.2: Link suggestion engine
-- [ ] Sprint 4.3.3: Cross-linking UI
-
-**Milestone 4.4 - Rate Limiting**:
-- [ ] Sprint 4.4.1: Rate limiter implementation
-- [ ] Sprint 4.4.2: Quota management
+**Milestone 4.3 - Cross-Linking (Issue #14)**:
+- [x] Sprint 4.3.1: Page index service (`/src/lib/services/cross-linking/page-index.ts`)
+- [x] Sprint 4.3.2: Relevance scorer (`/src/lib/services/cross-linking/relevance-scorer.ts`)
+- [x] Sprint 4.3.3: Cross-linking UI (`links-page-client.tsx`)
 
 ### Phase 5: Polish & Production (Weeks 14-16)
 **GitHub Issues**: #15, #16, #17, #18
@@ -661,10 +667,47 @@ draft -> editing -> seo_review -> cross_linking -> humanizing -> polished -> app
 - `/src/app/(dashboard)/ai-rules/page.tsx` - Server component with real data (Issue #9)
 - `/src/app/(dashboard)/ai-rules/ai-rules-client.tsx` - Client component with filtering and toggles (Issue #9)
 
-### Future Implementation (Phase 4+)
-- `/src/lib/services/firecrawl/` - Crawling client (Phase 4)
-- `/src/lib/services/dataforseo/` - SEO data client (Phase 4)
-- `/src/lib/cache/` - Upstash Redis caching (Phase 4)
+### Phase 4 Code (External API Integrations) - Issues #10-#14 COMPLETE
+
+**Firecrawl Service** (`/src/lib/services/firecrawl/`):
+- `client.ts` - Firecrawl API wrapper with batch crawling
+- `index.ts` - Barrel exports
+
+**DataForSEO Service** (`/src/lib/services/dataforseo/`):
+- `client.ts` - Base DataForSEO wrapper with Basic auth
+- `keywords.ts` - Keyword research endpoints (search volume, related keywords)
+- `index.ts` - Barrel exports
+
+**Cross-Linking Service** (`/src/lib/services/cross-linking/`):
+- `page-index.ts` - Page index for crawled pages, topic extraction
+- `relevance-scorer.ts` - Relevance scoring algorithm (topic overlap, title match)
+- `index.ts` - Barrel exports
+
+**Caching Layer** (`/src/lib/cache/`):
+- `keyword-cache.ts` - Supabase-based keyword caching (30-day TTL)
+- `index.ts` - Barrel exports
+
+**Server Actions**:
+- `/src/lib/actions/crawl.ts` - Crawl job management, URL discovery
+- `/src/lib/actions/research-keywords.ts` - DataForSEO keyword research with caching
+- `/src/lib/actions/suggest-links.ts` - Cross-linking suggestions and application
+
+**API Routes**:
+- `/src/app/api/webhooks/firecrawl/route.ts` - Firecrawl webhook handler
+
+**AI Prompts**:
+- `/src/lib/ai/prompts/link-suggestions.ts` - Anchor text generation prompts
+
+**Updated Pages**:
+- `/src/app/(dashboard)/brands/[brandId]/crawled/crawled-pages-client.tsx` - Firecrawl UI
+- `/src/app/(dashboard)/articles/[articleId]/seo/seo-page-client.tsx` - DataForSEO UI
+- `/src/app/(dashboard)/articles/[articleId]/links/links-page-client.tsx` - Cross-linking UI
+
+### Future Implementation (Phase 5+)
+- Tiptap rich text editor integration
+- Team invitations with Resend email
+- Full test coverage
+- Production deployment optimizations
 
 ---
 
@@ -798,10 +841,8 @@ These span multiple phases and need attention throughout:
 |-------|--------|-------------|--------|
 | Phase 2 | #2, #3, #4, #5 | Migrations, RLS, auth, data layer | **CLOSED** |
 | Phase 2 | #20, #25, #26 | Invitations, seed, backup | OPEN (deferred) |
-| Phase 3 | #7 | BYOK provider registry | **CLOSED** |
-| Phase 3 | #8 | Content generation pipeline | **IN PROGRESS** (401 auth errors) |
-| Phase 3 | #9 | AI pattern removal (humanization) | BLOCKED (by #8, mock data) |
-| Phase 4 | #10, #11, #13, #14 | External APIs, Firecrawl, DataForSEO | OPEN |
+| Phase 3 | #7, #8, #9 | BYOK provider, content generation, humanization | **CLOSED** |
+| Phase 4 | #10, #11, #12, #13, #14 | External APIs, Firecrawl, DataForSEO, Cross-linking | **CLOSED** |
 | Phase 5 | #15, #16, #17, #18, #21, #22, #23, #24 | Polish, editor, testing, security | OPEN |
 | **Phase 6** | **#27, #28, #29** | **Mock data migration** | **OPEN - RECOMMENDED NEXT** |
 
@@ -1159,4 +1200,4 @@ grep -r "mock-data" src/ --include="*.tsx" --include="*.ts" -l
 
 ---
 
-*Last Updated: December 11, 2024 - Phase 3 COMPLETE (Issues #7, #8, #9 all CLOSED). AI pattern detection, humanization, and rules management fully implemented. Phase 4 (External APIs - Firecrawl, DataForSEO) or Phase 6 (Mock Data Migration) are recommended next.*
+*Last Updated: December 11, 2024 - Phase 4 COMPLETE (Issues #10, #11, #12, #13, #14 all CLOSED). Firecrawl integration, DataForSEO keyword research, and cross-linking intelligence engine fully implemented. Phase 5 (Polish & Production) or Phase 6 (Mock Data Migration) are recommended next.*

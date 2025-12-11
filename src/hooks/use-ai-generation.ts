@@ -1,105 +1,123 @@
-"use client";
+/**
+ * useAIGeneration Hook
+ *
+ * Frontend hook for streaming AI content generation with abort support.
+ */
 
-import { useState, useCallback, useRef } from "react";
+'use client';
 
-export interface GenerationOptions {
+import { useState, useCallback, useRef } from 'react';
+
+export type InputType = 'bullets' | 'draft' | 'research' | 'topic_only';
+export type ArticleLength = 'short' | 'medium' | 'long';
+
+export interface GenerationInput {
   brandId: string;
-  inputType: "bullets" | "draft" | "research" | "topic_only";
-  content?: string;
-  topic: string;
-  targetAudience: string;
-  articleLength?: "short" | "medium" | "long" | number;
+  inputType: InputType;
+  content: string;
+  topic?: string;
+  targetAudience?: string;
+  articleLength: ArticleLength;
   cta?: string;
   seoKeywords?: string[];
   model?: string;
 }
 
 export interface UseAIGenerationReturn {
-  generate: (options: GenerationOptions) => Promise<string>;
-  isGenerating: boolean;
   generatedContent: string;
+  isGenerating: boolean;
   error: string | null;
+  generate: (input: GenerationInput) => Promise<string>;
   abort: () => void;
+  reset: () => void;
 }
 
 export function useAIGeneration(): UseAIGenerationReturn {
+  const [content, setContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedContent, setGeneratedContent] = useState("");
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const reset = useCallback(() => {
+    setContent('');
+    setError(null);
+    setIsGenerating(false);
+  }, []);
 
   const abort = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
-      setIsGenerating(false);
     }
+    setIsGenerating(false);
   }, []);
 
-  const generate = useCallback(async (options: GenerationOptions): Promise<string> => {
-    // Abort any existing generation
-    abort();
-
-    setIsGenerating(true);
+  const generate = useCallback(async (input: GenerationInput): Promise<string> => {
+    // Reset state
+    setContent('');
     setError(null);
-    setGeneratedContent("");
+    setIsGenerating(true);
 
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+    // Create new abort controller
+    abortControllerRef.current = new AbortController();
 
     try {
-      const response = await fetch("/api/content/generate", {
-        method: "POST",
+      const response = await fetch('/api/content/generate', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(options),
-        signal: controller.signal,
+        body: JSON.stringify(input),
+        signal: abortControllerRef.current.signal,
+        credentials: 'include', // Ensure cookies are sent for auth
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Generation failed: ${response.status}`);
+        const errorData = await response.json().catch(() => ({ error: 'Generation failed' }));
+        throw new Error(errorData.error || 'Generation failed');
       }
 
       if (!response.body) {
-        throw new Error("No response body");
+        throw new Error('No response body');
       }
 
       // Read the stream
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let fullContent = "";
+      let fullContent = '';
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+
+        if (done) {
+          break;
+        }
 
         const chunk = decoder.decode(value, { stream: true });
         fullContent += chunk;
-        setGeneratedContent(fullContent);
+        setContent(fullContent);
       }
 
       setIsGenerating(false);
-      abortControllerRef.current = null;
       return fullContent;
     } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") {
-        setError("Generation cancelled");
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('Generation cancelled');
       } else {
-        setError(err instanceof Error ? err.message : "Generation failed");
+        const errorMessage = err instanceof Error ? err.message : 'Generation failed';
+        setError(errorMessage);
       }
       setIsGenerating(false);
-      abortControllerRef.current = null;
       throw err;
     }
-  }, [abort]);
+  }, []);
 
   return {
-    generate,
+    generatedContent: content,
     isGenerating,
-    generatedContent,
     error,
+    generate,
     abort,
+    reset,
   };
 }

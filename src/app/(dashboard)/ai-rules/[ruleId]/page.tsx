@@ -16,8 +16,12 @@ import {
   Lock,
 } from "lucide-react";
 
-import type { PatternCategory, PatternType, PatternSeverity, AIPatternRule } from "@/types";
-import { mockAIPatternRules } from "@/lib/mock-data";
+import {
+  getUserTeams,
+  getAIRule,
+  updateTeamAIRule,
+  deleteTeamAIRule,
+} from "@/lib/actions";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +58,19 @@ import {
   AlertTitle,
 } from "@/components/ui/alert";
 
+type PatternCategory =
+  | "phrase_replacement"
+  | "sentence_structure"
+  | "word_variety"
+  | "transition_words"
+  | "punctuation"
+  | "paragraph_flow"
+  | "tone_adjustment"
+  | "custom";
+
+type PatternType = "regex" | "exact" | "semantic" | "ai_detection";
+type PatternSeverity = "low" | "medium" | "high";
+
 const categoryOptions: { value: PatternCategory; label: string }[] = [
   { value: "phrase_replacement", label: "Phrase Replacement" },
   { value: "sentence_structure", label: "Sentence Structure" },
@@ -83,36 +100,87 @@ interface TestMatch {
   index: number;
 }
 
+interface AIRule {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  pattern_type: string;
+  pattern: string | null;
+  replacement_options: string[] | null;
+  severity: string;
+  is_active: boolean;
+  is_global: boolean;
+  created_at: string | null;
+}
+
 export default function EditAIRulePage() {
   const params = useParams<{ ruleId: string }>();
   const router = useRouter();
 
-  const rule = mockAIPatternRules.find((r) => r.id === params.ruleId);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [teamId, setTeamId] = React.useState<string | null>(null);
+  const [rule, setRule] = React.useState<AIRule | null>(null);
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isTesting, setIsTesting] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
 
-  const [name, setName] = React.useState(rule?.name ?? "");
-  const [description, setDescription] = React.useState(rule?.description ?? "");
-  const [category, setCategory] = React.useState<PatternCategory>(
-    rule?.category ?? "word_variety"
-  );
-  const [patternType, setPatternType] = React.useState<PatternType>(
-    rule?.patternType ?? "regex"
-  );
-  const [pattern, setPattern] = React.useState(rule?.pattern ?? "");
-  const [replacementOptions, setReplacementOptions] = React.useState<string[]>(
-    rule?.replacementOptions?.length ? rule.replacementOptions : [""]
-  );
-  const [severity, setSeverity] = React.useState<PatternSeverity>(
-    rule?.severity ?? "medium"
-  );
+  const [name, setName] = React.useState("");
+  const [description, setDescription] = React.useState("");
+  const [category, setCategory] = React.useState<PatternCategory>("word_variety");
+  const [patternType, setPatternType] = React.useState<PatternType>("regex");
+  const [pattern, setPattern] = React.useState("");
+  const [replacementOptions, setReplacementOptions] = React.useState<string[]>([""]);
+  const [severity, setSeverity] = React.useState<PatternSeverity>("medium");
 
   const [testText, setTestText] = React.useState("");
   const [testMatches, setTestMatches] = React.useState<TestMatch[]>([]);
   const [testError, setTestError] = React.useState<string | null>(null);
+
+  // Load rule data
+  React.useEffect(() => {
+    async function loadData() {
+      setIsLoading(true);
+
+      // Get user's team
+      const teamsResult = await getUserTeams();
+      if (!teamsResult.data || teamsResult.data.length === 0) {
+        setIsLoading(false);
+        return;
+      }
+
+      const currentTeamId = teamsResult.data[0].id;
+      setTeamId(currentTeamId);
+
+      // Get rule
+      const ruleResult = await getAIRule(params.ruleId, currentTeamId);
+      if (ruleResult.data) {
+        const r = ruleResult.data;
+        setRule(r);
+        setName(r.name || "");
+        setDescription(r.description || "");
+        setCategory((r.category as PatternCategory) || "word_variety");
+        setPatternType((r.pattern_type as PatternType) || "regex");
+        setPattern(r.pattern || "");
+        setReplacementOptions(r.replacement_options?.length ? r.replacement_options : [""]);
+        setSeverity((r.severity as PatternSeverity) || "medium");
+      }
+
+      setIsLoading(false);
+    }
+
+    loadData();
+  }, [params.ruleId]);
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   if (!rule) {
     return (
@@ -125,7 +193,7 @@ export default function EditAIRulePage() {
     );
   }
 
-  const isGlobal = rule.isGlobal;
+  const isGlobal = rule.is_global;
   const isEditable = !isGlobal;
 
   function addReplacementOption() {
@@ -222,17 +290,37 @@ export default function EditAIRulePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!isEditable) return;
+    if (!isEditable || !teamId || !rule) return;
 
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    router.push("/ai-rules");
+
+    const result = await updateTeamAIRule(rule.id, teamId, {
+      name,
+      description,
+      pattern,
+      replacement_options: replacementOptions.filter((o) => o.trim()),
+      severity,
+    });
+
+    setIsSubmitting(false);
+
+    if (!result.error) {
+      router.push("/ai-rules");
+    }
   }
 
   async function handleDelete() {
+    if (!teamId || !rule) return;
+
     setIsDeleting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    router.push("/ai-rules");
+
+    const result = await deleteTeamAIRule(rule.id, teamId);
+
+    setIsDeleting(false);
+
+    if (result.data) {
+      router.push("/ai-rules");
+    }
   }
 
   const isValid =
@@ -664,10 +752,12 @@ export default function EditAIRulePage() {
                       {replacementOptions.filter((o) => o.trim()).length ||
                         "None"}
                     </p>
-                    <p>
-                      <span className="text-muted-foreground">Created:</span>{" "}
-                      {new Date(rule.createdAt).toLocaleDateString()}
-                    </p>
+                    {rule.created_at && (
+                      <p>
+                        <span className="text-muted-foreground">Created:</span>{" "}
+                        {new Date(rule.created_at).toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardContent>

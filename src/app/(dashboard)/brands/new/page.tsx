@@ -12,6 +12,7 @@ import {
   Link as LinkIcon,
   Loader2,
 } from "lucide-react";
+import { createBrand, getProfile, getUserTeams, setDefaultTeam, startBrandDiscovery, checkFirecrawlConfig } from "@/lib/actions";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -100,8 +101,60 @@ export default function NewBrandPage() {
 
   const handleCreate = async () => {
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    router.push("/brands");
+
+    try {
+      // Get user's team
+      let teamId: string | null = null;
+
+      const { data: profile } = await getProfile();
+      teamId = profile?.default_team_id || null;
+
+      // If no default team, try to get from user's teams and set it
+      if (!teamId) {
+        const { data: teams } = await getUserTeams();
+        if (teams && teams.length > 0) {
+          teamId = teams[0].id;
+          // Set this as the default team
+          await setDefaultTeam(teamId);
+        }
+      }
+
+      if (!teamId) {
+        console.error("No team found - please create a team first");
+        router.push("/onboarding");
+        return;
+      }
+
+      // Create brand in database
+      const { data: brand, error } = await createBrand({
+        teamId,
+        name: data.name,
+        websiteUrl: data.websiteUrl,
+        industry: data.industry || undefined,
+        description: data.description || undefined,
+      });
+
+      if (error || !brand) {
+        console.error("Failed to create brand:", error);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Start brand discovery (crawling) if Firecrawl is configured
+      const { configured } = await checkFirecrawlConfig();
+      if (configured) {
+        const crawlUrl = data.crawlUrl || data.websiteUrl;
+        await startBrandDiscovery(brand.id, crawlUrl);
+        // Redirect to brand page where they can see crawl progress
+        router.push(`/brands/${brand.id}`);
+      } else {
+        // No Firecrawl configured, just go to brands list
+        router.push("/brands");
+      }
+    } catch (err) {
+      console.error("Error creating brand:", err);
+      setIsSubmitting(false);
+    }
   };
 
   const additionalUrlsList = data.additionalUrls

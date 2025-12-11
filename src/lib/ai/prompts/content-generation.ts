@@ -1,143 +1,211 @@
-import type { Tables } from "@/types/database";
+/**
+ * Content Generation Prompts
+ *
+ * Brand-aware prompt templates for generating long-form content.
+ * Supports 4 input types: bullets, draft, research, topic_only
+ */
 
-type BrandProfile = Tables<"brand_profiles">;
+export type InputType = 'bullets' | 'draft' | 'research' | 'topic_only';
+export type ArticleLength = 'short' | 'medium' | 'long';
+
+export interface BrandVoice {
+  tone?: string;
+  formality?: number; // 1-10 scale
+  enthusiasm?: number; // 1-10 scale
+  humor?: number; // 1-10 scale
+  vocabulary?: string[];
+  powerWords?: string[];
+  avoidTerms?: string[];
+  doList?: string[];
+  dontList?: string[];
+}
 
 export interface ContentGenerationInput {
-  inputType: "bullets" | "draft" | "research" | "topic_only";
+  inputType: InputType;
   content: string;
-  topic: string;
-  targetAudience: string;
-  articleLength: "short" | "medium" | "long" | number;
+  topic?: string;
+  targetAudience?: string;
+  articleLength: ArticleLength;
   cta?: string;
   seoKeywords?: string[];
+  brandVoice?: BrandVoice;
+  brandName?: string;
 }
 
-export interface SEOEnrichment {
-  primaryKeywords?: Array<{ keyword: string; volume?: number }>;
-  secondaryKeywords?: Array<{ keyword: string; volume?: number }>;
+/**
+ * Get word count guidance based on article length
+ */
+export function getLengthGuidance(length: ArticleLength): { min: number; max: number; description: string } {
+  switch (length) {
+    case 'short':
+      return { min: 500, max: 800, description: 'concise, focused article' };
+    case 'medium':
+      return { min: 1000, max: 1500, description: 'comprehensive article with good depth' };
+    case 'long':
+      return { min: 2000, max: 3000, description: 'in-depth, authoritative piece' };
+    default:
+      return { min: 1000, max: 1500, description: 'comprehensive article' };
+  }
 }
 
-export function buildContentGenerationPrompt(
-  input: ContentGenerationInput,
-  brandProfile: BrandProfile | null,
-  seoData?: SEOEnrichment
-) {
-  const voiceDescription = brandProfile?.voice_description || "Professional and clear";
-  const voiceAdjectives = brandProfile?.voice_adjectives || [];
-  const toneFormality = brandProfile?.tone_formality ?? 5;
-  const toneEnthusiasm = brandProfile?.tone_enthusiasm ?? 5;
-  const sentenceStructure = brandProfile?.sentence_structure || "varied";
-  const vocabularyLevel = brandProfile?.vocabulary_level || "professional";
-  const preferredPov = brandProfile?.preferred_pov || "third_person";
-  const targetAudience = input.targetAudience;
-  const powerWords = brandProfile?.power_words || [];
-  const avoidWords = brandProfile?.avoid_words || [];
+/**
+ * Build the system prompt with brand voice injection
+ */
+export function buildSystemPrompt(input: ContentGenerationInput): string {
+  const { brandVoice, brandName, targetAudience, articleLength, seoKeywords } = input;
+  const lengthGuide = getLengthGuidance(articleLength);
 
-  const system = `You are a professional content writer specializing in long-form articles.
+  let systemPrompt = `You are an expert content writer specializing in creating engaging, brand-aligned long-form content.`;
 
-## Brand Voice Profile
-- **Voice**: ${voiceDescription || voiceAdjectives.join(", ")}
-- **Tone**: Formality ${toneFormality}/10, Enthusiasm ${toneEnthusiasm}/10
-- **Style**: ${sentenceStructure} sentences, ${vocabularyLevel} vocabulary
-- **POV**: ${preferredPov.replace("_", " ")}
-- **Target Audience**: ${targetAudience}
+  // Brand identity
+  if (brandName) {
+    systemPrompt += `\n\nYou are writing for ${brandName}.`;
+  }
 
-## Terminology Guidelines
-### Words to Use
-${powerWords.length > 0 ? powerWords.join(", ") : "N/A"}
+  // Target audience
+  if (targetAudience) {
+    systemPrompt += `\n\n## Target Audience\n${targetAudience}`;
+  }
 
-### Words to Avoid
-${avoidWords.length > 0 ? avoidWords.join(", ") : "N/A"}
+  // Brand voice characteristics
+  if (brandVoice) {
+    systemPrompt += `\n\n## Brand Voice Guidelines`;
 
-## Writing Constraints
-1. Write in the brand's voice consistently
-2. Use active voice predominantly
-3. Vary sentence length for rhythm
-4. Include specific examples where relevant
-5. Avoid generic filler phrases
-6. Natural keyword integration - NEVER force keywords
+    if (brandVoice.tone) {
+      systemPrompt += `\n- Tone: ${brandVoice.tone}`;
+    }
 
-${seoData ? `## SEO Guidelines
-Primary Keywords (use 2-3 times naturally): ${seoData.primaryKeywords?.map((k) => k.keyword).join(", ") || "N/A"}
-Secondary Keywords (use 1-2 times each): ${seoData.secondaryKeywords?.map((k) => k.keyword).join(", ") || "N/A"}
-` : ""}
+    if (brandVoice.formality !== undefined) {
+      const formalityDesc = brandVoice.formality >= 7 ? 'formal and professional' :
+                           brandVoice.formality >= 4 ? 'conversational yet professional' :
+                           'casual and friendly';
+      systemPrompt += `\n- Formality: ${formalityDesc} (${brandVoice.formality}/10)`;
+    }
 
-## Output Format
-Write the article in Markdown format with:
-- H1 title (compelling, not generic)
-- H2 section headers (benefit-driven or curiosity-provoking)
-- H3 subsection headers where appropriate
-- Bullet points for lists
-- Bold for emphasis on key terms
-- No explicit "Introduction" or "Conclusion" headers`;
+    if (brandVoice.enthusiasm !== undefined) {
+      const enthusiasmDesc = brandVoice.enthusiasm >= 7 ? 'highly energetic and passionate' :
+                            brandVoice.enthusiasm >= 4 ? 'engaged and positive' :
+                            'calm and measured';
+      systemPrompt += `\n- Energy: ${enthusiasmDesc} (${brandVoice.enthusiasm}/10)`;
+    }
 
-  const lengthGuidance = getLengthGuidance(input.articleLength);
+    if (brandVoice.humor !== undefined && brandVoice.humor > 3) {
+      const humorDesc = brandVoice.humor >= 7 ? 'witty with frequent humor' :
+                       'occasional light humor when appropriate';
+      systemPrompt += `\n- Humor: ${humorDesc} (${brandVoice.humor}/10)`;
+    }
 
-  const userPrompts: Record<ContentGenerationInput["inputType"], string> = {
-    bullets: `Create a comprehensive article based on these bullet points:
+    // Vocabulary preferences
+    if (brandVoice.vocabulary && brandVoice.vocabulary.length > 0) {
+      systemPrompt += `\n\n### Preferred Vocabulary\nUse these terms when relevant: ${brandVoice.vocabulary.join(', ')}`;
+    }
 
-${input.content}
+    if (brandVoice.powerWords && brandVoice.powerWords.length > 0) {
+      systemPrompt += `\n\n### Power Words\nIncorporate these impactful words: ${brandVoice.powerWords.join(', ')}`;
+    }
 
-**Topic**: ${input.topic}
-**Target Audience**: ${input.targetAudience}
-**Target Length**: ${lengthGuidance}
-${input.cta ? `**Call to Action**: ${input.cta}` : ""}
+    if (brandVoice.avoidTerms && brandVoice.avoidTerms.length > 0) {
+      systemPrompt += `\n\n### Terms to Avoid\nNever use: ${brandVoice.avoidTerms.join(', ')}`;
+    }
 
-Expand each bullet into full sections with examples, context, and practical insights.`,
+    // Do's and Don'ts
+    if (brandVoice.doList && brandVoice.doList.length > 0) {
+      systemPrompt += `\n\n### Writing Do's`;
+      brandVoice.doList.forEach(item => {
+        systemPrompt += `\n- ${item}`;
+      });
+    }
 
-    draft: `Enhance and expand this draft while maintaining the core message:
+    if (brandVoice.dontList && brandVoice.dontList.length > 0) {
+      systemPrompt += `\n\n### Writing Don'ts`;
+      brandVoice.dontList.forEach(item => {
+        systemPrompt += `\n- ${item}`;
+      });
+    }
+  }
 
-${input.content}
+  // SEO guidelines
+  if (seoKeywords && seoKeywords.length > 0) {
+    systemPrompt += `\n\n## SEO Guidelines
+Naturally incorporate these keywords throughout the content:
+${seoKeywords.map(k => `- ${k}`).join('\n')}
 
-**Topic**: ${input.topic}
-**Target Audience**: ${input.targetAudience}
-**Target Length**: ${lengthGuidance}
-${input.cta ? `**Call to Action**: ${input.cta}` : ""}
+Place the primary keyword in the first paragraph and H2 headings where natural.`;
+  }
 
-Improve clarity, add depth, include examples, and ensure brand voice alignment.`,
+  // Output format
+  systemPrompt += `\n\n## Output Format
+- Write in Markdown format
+- Use clear H2 (##) and H3 (###) headings to structure the content
+- Include an engaging introduction that hooks the reader
+- Target length: ${lengthGuide.min}-${lengthGuide.max} words (${lengthGuide.description})
+- End with a strong conclusion`;
 
-    research: `Create an article synthesizing this research:
+  // CTA
+  if (input.cta) {
+    systemPrompt += `\n- Include this call-to-action near the end: "${input.cta}"`;
+  }
 
-${input.content}
+  // Quality guidelines
+  systemPrompt += `\n\n## Quality Standards
+- Write original, engaging content that provides real value
+- Use concrete examples and actionable insights
+- Maintain consistent voice throughout
+- Ensure logical flow between sections
+- Avoid generic filler content`;
 
-**Topic**: ${input.topic}
-**Target Audience**: ${input.targetAudience}
-**Target Length**: ${lengthGuidance}
-${input.cta ? `**Call to Action**: ${input.cta}` : ""}
+  return systemPrompt;
+}
 
-Transform the research into engaging, accessible content with clear takeaways.`,
+/**
+ * Build the user prompt based on input type
+ */
+export function buildUserPrompt(input: ContentGenerationInput): string {
+  const { inputType, content, topic } = input;
 
-    topic_only: `Write a comprehensive article on: ${input.topic}
+  switch (inputType) {
+    case 'bullets':
+      return `Create a comprehensive article based on these key points:
 
-**Target Audience**: ${input.targetAudience}
-**Target Length**: ${lengthGuidance}
-${input.cta ? `**Call to Action**: ${input.cta}` : ""}
+${content}
 
-Cover key aspects comprehensively with practical examples and actionable insights.`,
+Expand each point into detailed sections while maintaining a cohesive narrative throughout the article.`;
+
+    case 'draft':
+      return `Improve and expand this draft into a polished, publication-ready article:
+
+${content}
+
+Enhance the structure, add depth to arguments, improve transitions, and ensure the content is engaging while preserving the original intent and key messages.`;
+
+    case 'research':
+      return `Create an informative article synthesizing this research and information:
+
+${content}
+
+Transform this research into an engaging narrative that educates readers while making complex information accessible and actionable.`;
+
+    case 'topic_only':
+      return `Write a comprehensive article about: ${topic || content}
+
+Create an engaging, well-structured piece that thoroughly covers this topic, providing valuable insights and practical takeaways for readers.`;
+
+    default:
+      return `Create a comprehensive article based on the following:
+
+${content}`;
+  }
+}
+
+/**
+ * Build complete prompt configuration for content generation
+ */
+export function buildContentGenerationPrompt(input: ContentGenerationInput): {
+  systemPrompt: string;
+  userPrompt: string;
+} {
+  return {
+    systemPrompt: buildSystemPrompt(input),
+    userPrompt: buildUserPrompt(input),
   };
-
-  return { system, user: userPrompts[input.inputType] };
-}
-
-function getLengthGuidance(length: "short" | "medium" | "long" | number): string {
-  if (typeof length === "number") return `approximately ${length} words`;
-  return {
-    short: "800-1200 words (concise, focused)",
-    medium: "1500-2500 words (thorough coverage)",
-    long: "3000-5000 words (comprehensive deep-dive)",
-  }[length];
-}
-
-export function estimateTokens(text: string): number {
-  // Rough estimate: ~4 characters per token for English
-  return Math.ceil(text.length / 4);
-}
-
-export function getTargetWordCount(length: "short" | "medium" | "long" | number): number {
-  if (typeof length === "number") return length;
-  return {
-    short: 1000,
-    medium: 2000,
-    long: 4000,
-  }[length];
 }

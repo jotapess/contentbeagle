@@ -7,15 +7,6 @@ import type { UserAPIKeys } from "@/lib/ai/provider-registry";
 
 export type UserAPIKey = Tables<"user_api_keys">;
 
-// Provider ID to name mapping
-export const PROVIDER_MAP: Record<string, string> = {
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-  google: "Google AI",
-  firecrawl: "Firecrawl",
-  dataforseo: "DataForSEO",
-};
-
 // Get all API keys for a team (metadata only, not the actual keys)
 export async function getAPIKeys(teamId: string) {
   const supabase = await createClient();

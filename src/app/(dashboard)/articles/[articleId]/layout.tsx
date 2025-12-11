@@ -10,11 +10,17 @@ import {
   Link2,
   Sparkles,
   History,
+  Loader2,
 } from "lucide-react";
 
-import { getArticleById } from "@/lib/mock-data";
+import { getArticle } from "@/lib/actions";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+
+interface Article {
+  id: string;
+  title: string;
+}
 
 interface ArticleLayoutProps {
   children: React.ReactNode;
@@ -31,7 +37,20 @@ export default function ArticleLayout({ children }: ArticleLayoutProps) {
   const params = useParams<{ articleId: string }>();
   const articleId = params.articleId;
 
-  const article = getArticleById(articleId);
+  const [article, setArticle] = React.useState<Article | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    async function loadArticle() {
+      setIsLoading(true);
+      const result = await getArticle(articleId);
+      if (result.data) {
+        setArticle(result.data);
+      }
+      setIsLoading(false);
+    }
+    loadArticle();
+  }, [articleId]);
 
   const tabs: NavTab[] = [
     { href: `/articles/${articleId}`, label: "Editor", icon: FileEdit },
@@ -46,6 +65,14 @@ export default function ArticleLayout({ children }: ArticleLayoutProps) {
       return pathname === href;
     }
     return pathname.startsWith(href);
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
 
   if (!article) {

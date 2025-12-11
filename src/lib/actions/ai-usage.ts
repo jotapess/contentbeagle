@@ -123,11 +123,11 @@ export async function getArticleUsage(articleId: string) {
 }
 
 // Estimate cost for tokens
-export function estimateCost(
+export async function estimateCost(
   model: string,
   inputTokens: number,
   outputTokens: number
-): number {
+): Promise<number> {
   // Cost per 1K tokens (input/output)
   const costs: Record<string, { input: number; output: number }> = {
     "openai:gpt-4o": { input: 0.005, output: 0.015 },

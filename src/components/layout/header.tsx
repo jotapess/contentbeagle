@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { currentUser } from "@/lib/mock-data";
+import { useAuth } from "@/components/providers/auth-provider";
 
 interface HeaderProps {
   title?: string;
@@ -34,6 +34,12 @@ function getUserInitials(name: string | null): string {
 }
 
 export function Header({ title, onMenuClick, className }: HeaderProps) {
+  const { user, signOut } = useAuth();
+
+  const fullName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
+  const avatarUrl = user?.user_metadata?.avatar_url;
+  const email = user?.email || "";
+
   return (
     <header
       className={cn(
@@ -86,11 +92,11 @@ export function Header({ title, onMenuClick, className }: HeaderProps) {
             >
               <Avatar className="size-9">
                 <AvatarImage
-                  src={currentUser.avatarUrl ?? undefined}
-                  alt={currentUser.fullName ?? "User"}
+                  src={avatarUrl ?? undefined}
+                  alt={fullName}
                 />
                 <AvatarFallback>
-                  {getUserInitials(currentUser.fullName)}
+                  {getUserInitials(fullName)}
                 </AvatarFallback>
               </Avatar>
             </Button>
@@ -99,19 +105,19 @@ export function Header({ title, onMenuClick, className }: HeaderProps) {
             <div className="flex items-center gap-2 p-2">
               <Avatar className="size-8">
                 <AvatarImage
-                  src={currentUser.avatarUrl ?? undefined}
-                  alt={currentUser.fullName ?? "User"}
+                  src={avatarUrl ?? undefined}
+                  alt={fullName}
                 />
                 <AvatarFallback className="text-xs">
-                  {getUserInitials(currentUser.fullName)}
+                  {getUserInitials(fullName)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex flex-col">
                 <span className="text-sm font-medium">
-                  {currentUser.fullName}
+                  {fullName}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {currentUser.email}
+                  {email}
                 </span>
               </div>
             </div>
@@ -127,7 +133,10 @@ export function Header({ title, onMenuClick, className }: HeaderProps) {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive cursor-pointer"
+              onClick={() => signOut()}
+            >
               <LogOut className="mr-2 size-4" />
               Sign out
             </DropdownMenuItem>

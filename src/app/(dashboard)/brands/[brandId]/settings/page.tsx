@@ -12,7 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 
-import { getBrandById } from "@/lib/mock-data";
+import { getBrand, updateBrand, deleteBrand, updateBrandStatus } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -50,13 +50,25 @@ const industries = [
   "Other",
 ];
 
+interface Brand {
+  id: string;
+  name: string;
+  website_url: string | null;
+  description: string | null;
+  industry: string | null;
+  target_audience: string | null;
+  status: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 export default function BrandSettingsPage() {
   const params = useParams();
   const router = useRouter();
   const brandId = params.brandId as string;
 
-  const brand = getBrandById(brandId);
-
+  const [brand, setBrand] = React.useState<Brand | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isArchiving, setIsArchiving] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
@@ -66,12 +78,31 @@ export default function BrandSettingsPage() {
   const [deleteConfirmation, setDeleteConfirmation] = React.useState("");
 
   const [formData, setFormData] = React.useState({
-    name: brand?.name || "",
-    websiteUrl: brand?.websiteUrl || "",
-    description: brand?.description || "",
-    industry: brand?.industry || "",
-    targetAudience: brand?.targetAudience || "",
+    name: "",
+    websiteUrl: "",
+    description: "",
+    industry: "",
+    targetAudience: "",
   });
+
+  React.useEffect(() => {
+    async function loadBrand() {
+      setIsLoading(true);
+      const result = await getBrand(brandId);
+      if (result.data) {
+        setBrand(result.data);
+        setFormData({
+          name: result.data.name || "",
+          websiteUrl: result.data.website_url || "",
+          description: result.data.description || "",
+          industry: result.data.industry || "",
+          targetAudience: result.data.target_audience || "",
+        });
+      }
+      setIsLoading(false);
+    }
+    loadBrand();
+  }, [brandId]);
 
   const updateField = (field: keyof typeof formData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -80,26 +111,47 @@ export default function BrandSettingsPage() {
 
   const handleSave = async () => {
     setIsSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const result = await updateBrand(brandId, {
+      name: formData.name,
+      website_url: formData.websiteUrl || null,
+      description: formData.description || null,
+      industry: formData.industry || null,
+      target_audience: formData.targetAudience || null,
+    });
     setIsSaving(false);
-    setHasChanges(false);
+    if (!result.error && result.data) {
+      setBrand(result.data);
+      setHasChanges(false);
+    }
   };
 
   const handleArchive = async () => {
     setIsArchiving(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const result = await updateBrandStatus(brandId, "archived");
     setIsArchiving(false);
     setArchiveDialogOpen(false);
-    router.push("/brands");
+    if (result.data) {
+      router.push("/brands");
+    }
   };
 
   const handleDelete = async () => {
     setIsDeleting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const result = await deleteBrand(brandId);
     setIsDeleting(false);
     setDeleteDialogOpen(false);
-    router.push("/brands");
+    if (result.success) {
+      router.push("/brands");
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   if (!brand) {
     return (
@@ -238,22 +290,26 @@ export default function BrandSettingsPage() {
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Created</dt>
               <dd>
-                {new Date(brand.createdAt).toLocaleDateString("en-US", {
-                  month: "long",
-                  day: "numeric",
-                  year: "numeric",
-                })}
+                {brand.created_at
+                  ? new Date(brand.created_at).toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
+                    })
+                  : "-"}
               </dd>
             </div>
             <Separator />
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Last Updated</dt>
               <dd>
-                {new Date(brand.updatedAt).toLocaleDateString("en-US", {
-                  month: "long",
-                  day: "numeric",
-                  year: "numeric",
-                })}
+                {brand.updated_at
+                  ? new Date(brand.updated_at).toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
+                    })
+                  : "-"}
               </dd>
             </div>
           </dl>

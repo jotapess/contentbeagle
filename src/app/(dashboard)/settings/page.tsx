@@ -12,7 +12,13 @@ import {
   EyeOff,
 } from "lucide-react";
 
-import { currentUser, mockTeams } from "@/lib/mock-data";
+import { useAuth } from "@/components/providers/auth-provider";
+import {
+  getUserTeams,
+  getProfile,
+  updateProfile,
+  setDefaultTeam,
+} from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +38,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { createClient } from "@/lib/supabase/client";
+
+interface Team {
+  id: string;
+  name: string;
+  slug: string;
+}
 
 function getInitials(name: string | null): string {
   if (!name) return "?";
@@ -44,12 +57,15 @@ function getInitials(name: string | null): string {
 }
 
 export default function SettingsPage() {
-  const [fullName, setFullName] = React.useState(currentUser.fullName ?? "");
-  const [email] = React.useState(currentUser.email);
-  const [defaultTeamId, setDefaultTeamId] = React.useState(
-    currentUser.defaultTeamId ?? ""
-  );
-  const [avatarUrl, setAvatarUrl] = React.useState(currentUser.avatarUrl ?? "");
+  const { user } = useAuth();
+  const [teams, setTeams] = React.useState<Team[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  const [fullName, setFullName] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [defaultTeamId, setDefaultTeamId] = React.useState("");
+  const [avatarUrl, setAvatarUrl] = React.useState("");
+  const [createdAt, setCreatedAt] = React.useState<string | null>(null);
 
   const [currentPassword, setCurrentPassword] = React.useState("");
   const [newPassword, setNewPassword] = React.useState("");
@@ -62,6 +78,46 @@ export default function SettingsPage() {
   const [isSavingPassword, setIsSavingPassword] = React.useState(false);
   const [profileSaved, setProfileSaved] = React.useState(false);
   const [passwordSaved, setPasswordSaved] = React.useState(false);
+  const [passwordError, setPasswordError] = React.useState("");
+
+  React.useEffect(() => {
+    async function loadData() {
+      setIsLoading(true);
+
+      // Load teams
+      const teamsResult = await getUserTeams();
+      if (teamsResult.data) {
+        setTeams(teamsResult.data);
+      }
+
+      // Load profile
+      const profileResult = await getProfile();
+      if (profileResult.data) {
+        setFullName(profileResult.data.full_name || "");
+        setAvatarUrl(profileResult.data.avatar_url || "");
+        setDefaultTeamId(profileResult.data.default_team_id || "");
+        setCreatedAt(profileResult.data.created_at);
+      }
+
+      // Set email from auth user
+      if (user) {
+        setEmail(user.email || "");
+        // Also check user metadata for name if not in profile
+        if (!profileResult.data?.full_name && user.user_metadata?.full_name) {
+          setFullName(user.user_metadata.full_name);
+        }
+        if (!profileResult.data?.avatar_url && user.user_metadata?.avatar_url) {
+          setAvatarUrl(user.user_metadata.avatar_url);
+        }
+      }
+
+      setIsLoading(false);
+    }
+
+    if (user) {
+      loadData();
+    }
+  }, [user]);
 
   const passwordsMatch =
     newPassword && confirmPassword && newPassword === confirmPassword;
@@ -70,18 +126,66 @@ export default function SettingsPage() {
 
   async function handleSaveProfile() {
     setIsSavingProfile(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // Update profile in database
+    const result = await updateProfile({
+      full_name: fullName,
+      avatar_url: avatarUrl,
+    });
+
+    // Update default team if changed
+    if (defaultTeamId) {
+      await setDefaultTeam(defaultTeamId);
+    }
+
+    // Also update user metadata in Supabase Auth
+    const supabase = createClient();
+    await supabase.auth.updateUser({
+      data: {
+        full_name: fullName,
+        avatar_url: avatarUrl,
+      },
+    });
+
     setIsSavingProfile(false);
-    setProfileSaved(true);
-    setTimeout(() => setProfileSaved(false), 3000);
+    if (!result.error) {
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 3000);
+    }
   }
 
   async function handleSavePassword() {
     if (!canSavePassword) return;
 
     setIsSavingPassword(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    setPasswordError("");
+
+    const supabase = createClient();
+
+    // Verify current password by re-authenticating
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: currentPassword,
+    });
+
+    if (signInError) {
+      setPasswordError("Current password is incorrect");
+      setIsSavingPassword(false);
+      return;
+    }
+
+    // Update password
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
     setIsSavingPassword(false);
+
+    if (updateError) {
+      setPasswordError(updateError.message);
+      return;
+    }
+
     setPasswordSaved(true);
     setCurrentPassword("");
     setNewPassword("");
@@ -92,6 +196,14 @@ export default function SettingsPage() {
   function handleAvatarChange() {
     const newSeed = Math.random().toString(36).substring(7);
     setAvatarUrl(`https://api.dicebear.com/7.x/avataaars/svg?seed=${newSeed}`);
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
 
   return (
@@ -186,7 +298,7 @@ export default function SettingsPage() {
                     <SelectValue placeholder="Select a team" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockTeams.map((team) => (
+                    {teams.map((team) => (
                       <SelectItem key={team.id} value={team.id}>
                         {team.name}
                       </SelectItem>
@@ -324,6 +436,10 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {passwordError && (
+                <p className="text-sm text-red-600">{passwordError}</p>
+              )}
+
               <div className="flex items-center justify-end gap-2">
                 {passwordSaved && (
                   <span className="flex items-center gap-1 text-sm text-green-600">
@@ -359,17 +475,19 @@ export default function SettingsPage() {
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Member since</p>
                 <p className="font-medium">
-                  {new Date(currentUser.createdAt).toLocaleDateString("en-US", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
+                  {createdAt
+                    ? new Date(createdAt).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })
+                    : "Unknown"}
                 </p>
               </div>
 
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Teams</p>
-                <p className="font-medium">{mockTeams.length}</p>
+                <p className="font-medium">{teams.length}</p>
               </div>
 
               <Separator />
