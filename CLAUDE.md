@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Repository**: https://github.com/jotapess/contentbeagle
 
-### Current Status: Phase 1 COMPLETE - Phase 2 COMPLETE - Phase 3 COMPLETE - Phase 4 COMPLETE
+### Current Status: Phases 1-4 COMPLETE - Phase 5 IN PROGRESS (Polish & Production)
 
 **Phase 1 (Frontend with Mock Data)** - COMPLETED December 2024
 - 27 routes built with Next.js 14+ App Router
@@ -45,10 +45,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Cross-linking service with topic-based relevance scoring
 - All external API UIs connected to real data
 
-**Phase 6 (Mock Data Migration)** - CREATED December 10, 2024
-- Issues #27, #28, #29 created to address mixed mock/real data
-- Some files still import from `/src/lib/mock-data/index.ts`
-- RECOMMENDED: Complete to fully remove mock data dependencies
+**Mock Data Migration** - COMPLETED December 11, 2024
+- Issues #27, #28, #29 all CLOSED
+- All 12 files migrated from mock data to real Supabase server actions
+- `/src/lib/mock-data/` directory removed
+- Interfaces updated for Supabase nullable fields
+
+**Phase 5 (Polish & Production)** - IN PROGRESS
+- Open Issues: #15 (parent), #16 (errors), #17 (DB), #18 (deploy), #21 (Tiptap), #22 (monitoring), #23 (testing), #24 (security)
+- Priority order: #21 (Tiptap) → #16 (errors) → #23 (testing) → #24 (security) → #22 (monitoring) → #18 (deploy)
+- Blocked: #18 requires #24 and #22; #20 (team invitations) needs Resend
 
 ---
 
@@ -228,7 +234,7 @@ contentbeagle/
 │   │   │   ├── api-keys.ts                   # [NEW - Phase 3] API key CRUD
 │   │   │   └── ai-usage.ts                   # [NEW - Phase 3] Token usage tracking
 │   │   │
-│   │   ├── mock-data/index.ts                # Mock data (to be deprecated)
+│   │   ├── constants.ts                      # App constants (SUPPORTED_MODELS)
 │   │   └── utils.ts                          # cn() utility
 │   │
 │   ├── hooks/                                # [NEW - Phase 3] Custom hooks
@@ -510,60 +516,19 @@ GOOGLE_AI_API_KEY=   # Fallback for Google models
 - [ ] Sprint 5.5.3: Deployment & launch
 - [ ] Sprint 5.5.4: Post-launch monitoring
 
-### Phase 6: Mock Data Migration - CREATED December 10, 2024
-**GitHub Issues**: #27, #28, #29
+### Mock Data Migration - COMPLETED December 11, 2024
+**GitHub Issues**: #27, #28, #29 - ALL CLOSED
 
-**CRITICAL BLOCKER IDENTIFIED**: Mixed mock data and real Supabase data causing:
-- 401 authentication errors in API routes
-- Confusion between mock IDs and real UUIDs
-- 22 files still importing from `/src/lib/mock-data/index.ts`
+**Migration Summary:**
+- All 12 files migrated from mock data to real Supabase server actions
+- `/src/lib/mock-data/` directory removed
+- Interfaces updated for Supabase nullable fields (`created_at: string | null`)
+- Type-safe patterns established for Supabase relation type mismatches
 
-**Issue #27 - Database Seed Scripts** (1-2 days):
-- [ ] Create comprehensive seed scripts for all 21 tables
-- [ ] Seed test user, team, brand, brand_profile
-- [ ] Seed sample articles in various workflow states
-- [ ] Seed AI pattern rules (global + team-specific)
-- GitHub: https://github.com/jotapess/contentbeagle/issues/27
-
-**Issue #28 - Migrate Critical Pages** (2-3 days):
-- [ ] Migrate dashboard page to real data
-- [ ] Migrate brands list and detail pages
-- [ ] Migrate articles list and editor pages
-- [ ] Migrate settings/api-keys page
-- GitHub: https://github.com/jotapess/contentbeagle/issues/28
-
-**Issue #29 - Complete Migration & Cleanup** (2-3 days):
-- [ ] Migrate remaining pages (team, ai-rules, settings)
-- [ ] Remove `/src/lib/mock-data/index.ts`
-- [ ] Update all imports to use server actions
-- [ ] Final testing of all routes with real data
-- GitHub: https://github.com/jotapess/contentbeagle/issues/29
-
-**Files Currently Using Mock Data** (22 files):
-```
-src/app/(dashboard)/ai-rules/[ruleId]/page.tsx
-src/app/(dashboard)/ai-rules/new/page.tsx
-src/app/(dashboard)/ai-rules/page.tsx
-src/app/(dashboard)/articles/[articleId]/history/page.tsx
-src/app/(dashboard)/articles/[articleId]/humanize/page.tsx
-src/app/(dashboard)/articles/[articleId]/layout.tsx
-src/app/(dashboard)/articles/[articleId]/links/page.tsx
-src/app/(dashboard)/articles/[articleId]/page.tsx
-src/app/(dashboard)/articles/[articleId]/seo/page.tsx
-src/app/(dashboard)/articles/new/page.tsx
-src/app/(dashboard)/articles/page.tsx
-src/app/(dashboard)/brands/[brandId]/crawled/page.tsx
-src/app/(dashboard)/brands/[brandId]/page.tsx
-src/app/(dashboard)/brands/[brandId]/profile/page.tsx
-src/app/(dashboard)/brands/[brandId]/settings/page.tsx
-src/app/(dashboard)/brands/new/page.tsx
-src/app/(dashboard)/brands/page.tsx
-src/app/(dashboard)/dashboard/page.tsx
-src/app/(dashboard)/settings/api-keys/page.tsx
-src/app/(dashboard)/settings/usage/page.tsx
-src/app/(dashboard)/team/page.tsx
-src/components/layout/team-switcher.tsx
-```
+**Key Patterns Established:**
+- Date null handling: `{date ? new Date(date).toLocaleDateString() : "-"}`
+- Sort null handling: `.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))`
+- Relation double cast: `as unknown as TeamMemberWithUser[]` for complex joins
 
 ---
 
@@ -625,7 +590,6 @@ draft -> editing -> seo_review -> cross_linking -> humanizing -> polished -> app
 - `/.env.example` - Environment variable template
 
 ### Core UI Code
-- `/src/lib/mock-data/index.ts` - Mock data (being replaced by server actions)
 - `/src/types/index.ts` - TypeScript interfaces
 - `/src/components/layout/` - Sidebar, Header, TeamSwitcher
 - `/src/app/(dashboard)/layout.tsx` - Protected dashboard layout
@@ -781,24 +745,6 @@ See `/docs/AI-PIPELINE.md` for complete implementation.
 
 ---
 
-## Mock Data Entities
-
-Current mock data in `/src/lib/mock-data/index.ts`:
-
-- **Users**: 3 users (John, Jane, Mike)
-- **Teams**: 2 teams (Acme Content Team, Personal Workspace)
-- **Team Members**: 3 members with owner/editor/viewer roles
-- **Brands**: 3 brands (TechFlow SaaS, GreenLeaf Wellness, FinanceFirst)
-- **Brand Profiles**: 2 complete profiles with voice/tone/terminology
-- **Articles**: 3 articles in various workflow states
-- **Crawled Pages**: 3 pages for TechFlow brand
-- **AI Pattern Rules**: 6 rules (5 global, 1 team-specific)
-- **API Keys**: 3 configured (OpenAI, Anthropic, Firecrawl)
-- **Usage Data**: Sample AI usage logs
-- **Keyword Data**: Sample SEO keywords
-
----
-
 ## Risk Areas & Mitigations
 
 ### High-Risk Areas (Prototype First)
@@ -832,7 +778,7 @@ These span multiple phases and need attention throughout:
 ## GitHub Issue Tracking
 
 **Repository**: https://github.com/jotapess/contentbeagle.git
-**Latest Commit**: (check git log)
+**Latest Commit**: a501432 (Phase 3/4 complete, mock data removed)
 **Branch**: main
 
 ### All Issues (#1-#29)
@@ -844,7 +790,7 @@ These span multiple phases and need attention throughout:
 | Phase 3 | #7, #8, #9 | BYOK provider, content generation, humanization | **CLOSED** |
 | Phase 4 | #10, #11, #12, #13, #14 | External APIs, Firecrawl, DataForSEO, Cross-linking | **CLOSED** |
 | Phase 5 | #15, #16, #17, #18, #21, #22, #23, #24 | Polish, editor, testing, security | OPEN |
-| **Phase 6** | **#27, #28, #29** | **Mock data migration** | **OPEN - RECOMMENDED NEXT** |
+| **Mock Data** | **#27, #28, #29** | **Mock data migration** | **CLOSED** |
 
 **Note:** Issue #19 was CLOSED as duplicate (merged into #2)
 
@@ -865,13 +811,13 @@ These span multiple phases and need attention throughout:
 | #8 | Content Generation Pipeline | CLOSED | Dec 10, 2024 |
 | #9 | AI Pattern Removal (Humanization) | CLOSED | Dec 11, 2024 |
 
-### Phase 6 Issues - RECOMMENDED NEXT
+### Mock Data Migration Issues - COMPLETED December 11, 2024
 
-| Issue | Title | Status | Estimate | URL |
-|-------|-------|--------|----------|-----|
-| #27 | Database Seed Scripts | OPEN | 1-2 days | https://github.com/jotapess/contentbeagle/issues/27 |
-| #28 | Migrate Critical Pages | OPEN | 2-3 days | https://github.com/jotapess/contentbeagle/issues/28 |
-| #29 | Complete Migration & Cleanup | OPEN | 2-3 days | https://github.com/jotapess/contentbeagle/issues/29 |
+| Issue | Title | Status | Completed |
+|-------|-------|--------|-----------|
+| #27 | Database Seed Scripts | CLOSED | Dec 11, 2024 |
+| #28 | Migrate Critical Pages | CLOSED | Dec 11, 2024 |
+| #29 | Complete Migration & Cleanup | CLOSED | Dec 11, 2024 |
 
 ### Project Board
 Issues are organized on the "Content Beagle Project" board (ID: PVT_kwHOAr5cW84BKU7C).
@@ -1081,64 +1027,41 @@ Action items:
 4. Re-close with updated checklists
 5. Updated `github-issue-architect` agent to prevent this in future
 
-**Priority 1: Complete Phase 6 - Mock Data Migration**
-The mixed mock/real data is blocking reliable testing of Phase 3 features.
+**Phase 5 Priorities (December 11, 2024):**
 
-1. **Start with Issue #27** (Database Seed Scripts)
-   - Create seed scripts for test data in Supabase
-   - URL: https://github.com/jotapess/contentbeagle/issues/27
-   - This establishes reliable test data
+| Priority | Issue | Title | Estimated | Blockers |
+|----------|-------|-------|-----------|----------|
+| 1 | #21 | Tiptap rich text editor | 2-3 days | None |
+| 2 | #16 | Error handling framework | 1-2 days | None |
+| 3 | #23 | Testing infrastructure | 2-3 days | None |
+| 4 | #24 | Security audit | 2 days | None |
+| 5 | #22 | Monitoring & analytics | 1-2 days | None |
+| 6 | #18 | Deploy to Vercel | 1-2 days | #24, #22 |
 
-2. **Then Issue #28** (Migrate Critical Pages)
-   - Dashboard, brands, articles pages to real data
-   - URL: https://github.com/jotapess/contentbeagle/issues/28
+**Deferred Issues:**
+- #20 (Team invitations) - Requires Resend email account setup
+- #26 (Backup documentation) - Nice to have
 
-3. **Finally Issue #29** (Complete Migration)
-   - Remove `/src/lib/mock-data/index.ts` entirely
-   - URL: https://github.com/jotapess/contentbeagle/issues/29
+### Key Files for Phase 5:
 
-**Priority 2: Complete Issue #8 (Content Generation)**
-After mock data migration, test content generation with real data:
-- The 401 auth errors should be resolved with proper auth context
-- Test with real brand and article data from Supabase
+**Rich Text Editor (#21)**:
+- `/src/app/(dashboard)/articles/[articleId]/page.tsx` - Current editor
+- `/src/app/(dashboard)/articles/[articleId]/article-editor-client.tsx` - Client component
+- Will need: `npm install @tiptap/react @tiptap/starter-kit @tiptap/extension-link`
 
-**Priority 3: Issue #9 (Humanization)**
-Only after #8 is fully working with real data.
+**Error Handling (#16)**:
+- `/src/lib/actions/` - Server actions need error boundaries
+- `/src/app/api/` - API routes need consistent error responses
+- Consider: react-error-boundary, toast notifications
 
-### Key Files for Next Session:
+**Testing (#23)**:
+- No test infrastructure yet - need jest/vitest setup
+- Priority: Server actions, API routes, auth flows
 
-**Mock Data Migration (Phase 6)**:
-- `/src/lib/mock-data/index.ts` - The file to eventually remove
-- `/supabase/migrations/` - Reference for table schemas
-- `/src/lib/actions/` - Server actions already built (use these!)
-
-**Content Generation Debugging (Issue #8)**:
-- `/src/app/api/content/generate/route.ts` - Has debug logging, check for 401 errors
-- `/src/hooks/use-ai-generation.ts` - Has `credentials: 'include'` fix applied
-- `/src/proxy.ts` - New Next.js 16 proxy file (was middleware.ts)
-- `/src/lib/supabase/middleware.ts` - Auth logic used by proxy
-
-**AI Integration Reference**:
-- `/src/lib/ai/provider-registry.ts` - How to get AI provider instances
-- `/src/lib/ai/generation-service.ts` - AIGenerationService pattern
-- `/src/lib/ai/prompts/content-generation.ts` - Prompt building pattern
-
-### Issue #8 Known Problems (December 10, 2024):
-
-1. **401 Auth Errors**: Content generation API returning 401
-   - Multiple fixes applied but not fully tested
-   - Likely caused by mixed mock data confusing auth context
-
-2. **Fixes Applied During Session**:
-   - Changed to admin client for bypassing RLS
-   - Added PROVIDER_MAP for model-to-provider lookup
-   - Added topic_only mode support
-   - Added `credentials: 'include'` to frontend fetch
-   - Renamed middleware.ts to proxy.ts for Next.js 16
-
-3. **Root Cause Identified**: 22 files still use mock data
-   - Creates confusion between mock IDs and real UUIDs
-   - Auth context gets corrupted with mixed data sources
+**Security (#24)**:
+- RLS policies (already implemented, need audit)
+- API key encryption (Supabase Vault - verify)
+- Input sanitization (XSS prevention)
 
 ### When Completing Work (CRITICAL - GitHub Issue Protocol):
 
@@ -1188,8 +1111,6 @@ npm run dev
 # Generate Supabase types
 npx supabase gen types typescript --project-id eiowwhicvrtawgotvswt > src/types/database.ts
 
-# Check which files still use mock data
-grep -r "mock-data" src/ --include="*.tsx" --include="*.ts" -l
 ```
 
 ### Key Planning Documents:
@@ -1200,4 +1121,4 @@ grep -r "mock-data" src/ --include="*.tsx" --include="*.ts" -l
 
 ---
 
-*Last Updated: December 11, 2024 - Phase 4 COMPLETE (Issues #10, #11, #12, #13, #14 all CLOSED). Firecrawl integration, DataForSEO keyword research, and cross-linking intelligence engine fully implemented. Phase 5 (Polish & Production) or Phase 6 (Mock Data Migration) are recommended next.*
+*Last Updated: December 11, 2024 - Phases 1-4 COMPLETE. Mock data migration COMPLETE (Issues #27, #28, #29 CLOSED). Phase 5 (Polish & Production) IN PROGRESS. Priority: #21 (Tiptap) → #16 (errors) → #23 (testing) → #24 (security) → #22 (monitoring) → #18 (deploy). Latest commit: a501432.*
