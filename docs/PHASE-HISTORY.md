@@ -308,4 +308,49 @@ The implementation was organized into 7 logical batches:
 
 ---
 
-*Archive created: December 11, 2024*
+---
+
+## Phase 5 Work Session - December 11, 2024
+
+### Firecrawl Production Testing & UX Improvements
+
+**Work Completed**:
+
+1. **Fixed Firecrawl Crawling Issues**
+   - Removed invalid regex patterns from `excludePaths` that caused 400 errors
+   - Issue: Glob patterns like `*.pdf` were being converted to invalid regex by Firecrawl
+   - Solution: Removed default excludePaths entirely, let Firecrawl discover all pages
+   - File: `/src/lib/services/firecrawl/client.ts`
+
+2. **Production Crawl Testing**
+   - Successfully crawled scale.agency on Vercel production
+   - 44 pages discovered and crawled (blog posts, case studies, expertise pages)
+   - Webhook pipeline working: crawl → pages stored → intelligence extraction triggered
+
+3. **Crawl-to-Ready UX Improvements**
+   - Added state tracking for crawl completion (`crawlCompleted`, `crawlCompletedCount`)
+   - New success alert appears when crawl finishes showing page count
+   - Prominent "Analyze Brand Voice" CTA button in the alert
+   - File: `/src/app/(dashboard)/brands/[brandId]/page.tsx`
+
+4. **Architecture Clarification**
+   - `brand_intelligence` table: Auto-populated after crawl (keywords, topics, voice summary)
+   - `brand_profiles` table: Populated by manual "Analyze Brand Voice" action
+   - User needs to click "Analyze Brand Voice" button to get detailed profile
+
+### User Flow After Changes
+
+1. **During Crawling**: Progress card with animated spinner, progress bar, crawled URLs list
+2. **Crawl Complete**: Green success alert with page count + "Analyze Brand Voice" button
+3. **After Analysis**: Success alert directing to brand profile page
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/lib/services/firecrawl/client.ts` | Removed invalid excludePaths patterns |
+| `src/app/(dashboard)/brands/[brandId]/page.tsx` | Added crawl completion UX |
+
+---
+
+*Archive updated: December 11, 2024*

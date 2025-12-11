@@ -116,6 +116,8 @@ export default function BrandOverviewPage() {
   const [isAnalyzing, setIsAnalyzing] = React.useState(false);
   const [analysisError, setAnalysisError] = React.useState<string | null>(null);
   const [analysisSuccess, setAnalysisSuccess] = React.useState(false);
+  const [crawlCompleted, setCrawlCompleted] = React.useState(false);
+  const [crawlCompletedCount, setCrawlCompletedCount] = React.useState(0);
 
   // Load data
   const loadData = React.useCallback(async () => {
@@ -198,8 +200,11 @@ export default function BrandOverviewPage() {
               : null
           );
 
-          // If completed, reload all data
+          // If completed, set completion state and reload all data
           if (result.completed) {
+            setCrawlCompleted(true);
+            setCrawlCompletedCount(result.progress || 0);
+            setCrawlJob(null); // Clear crawl job to hide progress UI
             await loadData();
           }
         }
@@ -394,6 +399,38 @@ export default function BrandOverviewPage() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Crawl Completed Success */}
+      {crawlCompleted && !analysisSuccess && !brand.brand_profile?.voice_description && (
+        <Alert className="border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-200">
+          <Sparkles className="size-4" />
+          <AlertTitle>Crawl Complete!</AlertTitle>
+          <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Successfully crawled {crawlCompletedCount} pages from your website.
+              Now analyze your brand voice to unlock AI-powered content generation.
+            </span>
+            <Button
+              size="sm"
+              onClick={handleAnalyzeBrand}
+              disabled={isAnalyzing}
+              className="shrink-0 bg-green-700 hover:bg-green-800 dark:bg-green-800 dark:hover:bg-green-700"
+            >
+              {isAnalyzing ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Brain className="size-4" />
+                  Analyze Brand Voice
+                </>
+              )}
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Analysis Success */}

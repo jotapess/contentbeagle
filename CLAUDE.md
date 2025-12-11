@@ -196,6 +196,33 @@ UPSTASH_REDIS_REST_TOKEN=
 
 ---
 
+## Recent Session Notes (December 11, 2024)
+
+### Firecrawl Integration - WORKING
+
+- **Production crawling tested**: 44 pages successfully crawled from scale.agency
+- **Webhook pipeline complete**: crawl → pages stored → intelligence extraction
+- **Fixed**: Invalid regex patterns in excludePaths causing 400 errors
+
+### Brand Data Architecture
+
+Two separate systems for brand intelligence:
+
+| Table | Population | Contains |
+|-------|------------|----------|
+| `brand_intelligence` | Auto (after crawl) | Keywords, topics, voice summary |
+| `brand_profiles` | Manual (Analyze button) | Detailed tone, style, do/don't lists |
+
+**User must click "Analyze Brand Voice"** to populate brand_profiles after crawl.
+
+### Crawl UX Flow
+
+1. **Crawling**: Progress card with spinner, progress bar, URL list
+2. **Complete**: Green alert with page count + "Analyze Brand Voice" CTA
+3. **Analyzed**: Success alert linking to brand profile
+
+---
+
 ## User Preferences
 
 - **No Claude attribution** in commit messages
@@ -226,4 +253,4 @@ gh issue view <number>     # View specific issue
 
 ---
 
-*Last Updated: December 11, 2024 - Phases 1-4 COMPLETE. Phase 5 IN PROGRESS.*
+*Last Updated: December 11, 2024 - Phases 1-4 COMPLETE. Phase 5 IN PROGRESS. Firecrawl production-tested.*
