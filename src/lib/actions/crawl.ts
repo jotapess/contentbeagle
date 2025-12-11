@@ -568,21 +568,25 @@ export async function startBrandDiscovery(
     return { crawlJobId: null, discoveredUrls: [], error: 'Brand not found' };
   }
 
-  // Update brand status to discovering
+  // Update brand status to crawling
   await supabase
     .from('brands')
-    .update({ status: 'discovering' })
+    .update({ status: 'crawling' })
     .eq('id', brandId);
 
-  // Step 1: Discover URLs
+  // Step 1: Discover URLs using Firecrawl's map endpoint
+  console.log(`[Brand Discovery] Starting URL discovery for ${websiteUrl}`);
   const { urls, error: discoverError } = await discoverUrls(websiteUrl, {
     teamId: brand.team_id,
     limit: 50,
     prioritize: true,
   });
 
+  console.log(`[Brand Discovery] Discovered ${urls.length} URLs, error: ${discoverError || 'none'}`);
+
   if (discoverError || urls.length === 0) {
     // Fall back to just the main URL
+    console.log(`[Brand Discovery] Falling back to main URL only`);
     const fallbackUrls = [websiteUrl];
 
     const { data: crawlJob, error: createError } = await createCrawlJob(brandId, {
@@ -593,7 +597,7 @@ export async function startBrandDiscovery(
     if (createError) {
       await supabase
         .from('brands')
-        .update({ status: 'failed' })
+        .update({ status: 'error' })
         .eq('id', brandId);
       return { crawlJobId: null, discoveredUrls: [], error: createError };
     }
@@ -605,6 +609,8 @@ export async function startBrandDiscovery(
     };
   }
 
+  console.log(`[Brand Discovery] Creating crawl job with ${urls.length} discovered URLs`);
+
   // Step 2: Create crawl job with discovered URLs
   const { data: crawlJob, error: createError } = await createCrawlJob(brandId, {
     seedUrls: urls,
@@ -614,7 +620,7 @@ export async function startBrandDiscovery(
   if (createError) {
     await supabase
       .from('brands')
-      .update({ status: 'failed' })
+      .update({ status: 'error' })
       .eq('id', brandId);
     return { crawlJobId: null, discoveredUrls: urls, error: createError };
   }

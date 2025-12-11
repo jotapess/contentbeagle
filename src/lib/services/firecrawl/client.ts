@@ -237,14 +237,30 @@ export async function mapDomain(
   }
 
   try {
-    // v2 API map returns MapData with links: SearchResultWeb[]
+    console.log(`[Firecrawl Map] Starting map for ${normalizedUrl} with limit=${limit}`);
+
+    // v2 API map returns MapData with links array
     const result = await client.map(normalizedUrl, {
       limit,
       includeSubdomains,
     });
 
-    // Extract URLs from SearchResultWeb objects
-    const urls = result.links?.map(link => link.url) || [];
+    console.log(`[Firecrawl Map] Raw result:`, JSON.stringify(result).substring(0, 500));
+
+    // v2 map endpoint returns links directly as an array of strings or objects
+    let urls: string[] = [];
+
+    if (result.links) {
+      // Could be array of strings or array of objects with url property
+      urls = result.links.map((link: string | { url: string }) =>
+        typeof link === 'string' ? link : link.url
+      ).filter(Boolean);
+    } else if (Array.isArray(result)) {
+      // Direct array of strings
+      urls = result.filter((url): url is string => typeof url === 'string');
+    }
+
+    console.log(`[Firecrawl Map] Extracted ${urls.length} URLs`);
 
     // Cache successful result
     if (useCache && urls.length > 0) {
@@ -256,7 +272,7 @@ export async function mapDomain(
       urls,
     };
   } catch (error) {
-    console.error('Firecrawl map error:', error);
+    console.error('[Firecrawl Map] Error:', error);
     return {
       success: false,
       urls: [],
@@ -295,6 +311,9 @@ export async function startCrawl(
   const normalizedUrl = url.startsWith('http') ? url : `https://${url}`;
 
   try {
+    console.log(`[Firecrawl Crawl] Starting async crawl for ${normalizedUrl}`);
+    console.log(`[Firecrawl Crawl] Options: maxPages=${maxPages}, maxDepth=${maxDepth}, webhookUrl=${webhookUrl}`);
+
     // Use v1 API for async crawl with webhooks
     const crawlOptions: Record<string, unknown> = {
       limit: maxPages,
@@ -302,6 +321,9 @@ export async function startCrawl(
       scrapeOptions: {
         formats: ['markdown'],
       },
+      // Allow crawling all paths by default for better discovery
+      allowBackwardLinks: true,
+      allowExternalLinks: false,
     };
 
     if (includePaths?.length) {
@@ -310,21 +332,45 @@ export async function startCrawl(
 
     if (excludePaths?.length) {
       crawlOptions.excludePaths = excludePaths;
+    } else {
+      // Default exclusions to avoid irrelevant pages
+      crawlOptions.excludePaths = [
+        '/cdn-cgi/*',
+        '*.pdf',
+        '*.zip',
+        '*.exe',
+        '/wp-admin/*',
+        '/wp-json/*',
+        '/feed/*',
+        '/cart*',
+        '/checkout*',
+        '/my-account*',
+        '/login*',
+        '/register*',
+        '/password*',
+      ];
     }
 
     if (webhookUrl) {
       crawlOptions.webhook = webhookUrl;
     }
 
+    console.log(`[Firecrawl Crawl] Full options:`, JSON.stringify(crawlOptions).substring(0, 500));
+
     // Use v1 asyncCrawlUrl for webhook support
     const result = await client.v1.asyncCrawlUrl(normalizedUrl, crawlOptions);
 
-    if (!result.success || !result.id) {
+    console.log(`[Firecrawl Crawl] Result:`, JSON.stringify(result));
+
+    if (!result.success || !('id' in result) || !result.id) {
+      console.error(`[Firecrawl Crawl] Failed to start: success=${result.success}, id=${'id' in result ? result.id : 'none'}`);
       return {
         success: false,
         error: 'Failed to start crawl job',
       };
     }
+
+    console.log(`[Firecrawl Crawl] Job started successfully: ${result.id}`);
 
     return {
       success: true,
@@ -332,7 +378,7 @@ export async function startCrawl(
       status: 'pending',
     };
   } catch (error) {
-    console.error('Firecrawl crawl start error:', error);
+    console.error('[Firecrawl Crawl] Start error:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -354,16 +400,22 @@ export async function getCrawlStatus(jobId: string): Promise<CrawlStatusResult> 
   }
 
   try {
+    console.log(`[Firecrawl Status] Checking status for job ${jobId}`);
+
     // Use v1 API for status check
     const result = await client.v1.checkCrawlStatus(jobId);
 
     if (!result.success) {
+      console.error(`[Firecrawl Status] Failed to get status`);
       return {
         success: false,
         status: 'failed',
         error: 'Failed to get crawl status',
       };
     }
+
+    // Log status details (only if success)
+    console.log(`[Firecrawl Status] Response: status=${result.status}, completed=${result.completed}, total=${result.total}, data.length=${result.data?.length || 0}`);
 
     // Map Firecrawl status to our status
     let status: CrawlStatusResult['status'] = 'pending';
