@@ -119,9 +119,11 @@ export async function POST(request: NextRequest) {
           const pageUrl = (page.url || page.sourceURL || (page.metadata as Record<string, unknown>)?.sourceURL || (page.metadata as Record<string, unknown>)?.url) as string | undefined;
 
           if (!pageUrl) {
-            console.error('[Firecrawl Webhook] Page missing URL, skipping. Keys:', Object.keys(page));
+            console.error('[Firecrawl Webhook] Page missing URL, skipping. Available keys:', Object.keys(page), 'Metadata keys:', page.metadata ? Object.keys(page.metadata as object) : 'none');
             break;
           }
+
+          console.log(`[Firecrawl Webhook] Processing page: ${pageUrl}`);
 
           const pageMarkdown = page.markdown as string | undefined;
           const pageMetadata = page.metadata as Record<string, unknown> | undefined;
@@ -204,14 +206,20 @@ export async function POST(request: NextRequest) {
         }
 
         // Update brand status to indicate content is available
-        await supabase
+        const { error: brandUpdateError } = await supabase
           .from('brands')
           .update({
             status: 'active',
           })
           .eq('id', brandId);
 
-        console.log(`[Firecrawl Webhook] Crawl completed: ${finalJob?.pages_crawled} pages`);
+        if (brandUpdateError) {
+          console.error(`[Firecrawl Webhook] Failed to update brand status:`, brandUpdateError);
+        } else {
+          console.log(`[Firecrawl Webhook] Brand ${brandId} status updated to active`);
+        }
+
+        console.log(`[Firecrawl Webhook] Crawl completed: ${finalJob?.pages_crawled} pages for brand ${brandId}`);
 
         // Trigger intelligence extraction pipeline asynchronously
         // This runs in the background and doesn't block the webhook response

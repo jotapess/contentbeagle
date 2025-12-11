@@ -82,6 +82,8 @@ export async function createCrawlJob(
       ? `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/firecrawl`
       : undefined;
 
+    console.log(`[Crawl] Starting crawl for ${seedUrls[0]} with maxPages=${maxPages}, maxDepth=3, webhookUrl=${webhookUrl}`);
+
     const crawlResult = await startCrawl(seedUrls[0], {
       maxPages,
       maxDepth: 3,
@@ -92,6 +94,8 @@ export async function createCrawlJob(
         teamId: brand.team_id,
       },
     });
+
+    console.log(`[Crawl] Firecrawl response:`, crawlResult.success ? `jobId=${crawlResult.jobId}` : `error=${crawlResult.error}`);
 
     if (!crawlResult.success) {
       // Update job as failed
