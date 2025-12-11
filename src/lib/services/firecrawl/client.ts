@@ -332,24 +332,8 @@ export async function startCrawl(
 
     if (excludePaths?.length) {
       crawlOptions.excludePaths = excludePaths;
-    } else {
-      // Default exclusions to avoid irrelevant pages
-      crawlOptions.excludePaths = [
-        '/cdn-cgi/*',
-        '*.pdf',
-        '*.zip',
-        '*.exe',
-        '/wp-admin/*',
-        '/wp-json/*',
-        '/feed/*',
-        '/cart*',
-        '/checkout*',
-        '/my-account*',
-        '/login*',
-        '/register*',
-        '/password*',
-      ];
     }
+    // Note: Not adding default excludePaths - let Firecrawl discover all pages
 
     if (webhookUrl) {
       crawlOptions.webhook = webhookUrl;
