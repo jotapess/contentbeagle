@@ -9,8 +9,6 @@ import {
   ChevronRight,
   PanelRightClose,
   PanelRightOpen,
-  Clock,
-  FileText,
   Building2,
   Loader2,
 } from "lucide-react";
@@ -21,8 +19,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { TiptapEditor } from "@/components/articles";
 import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
@@ -167,31 +165,22 @@ export function ArticleEditorClient({ article }: ArticleEditorClientProps) {
           />
         </div>
 
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto p-4">
           <Label htmlFor="content" className="sr-only">
             Article Content
           </Label>
-          <Textarea
-            id="content"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="min-h-full resize-none border-0 bg-transparent font-mono text-sm leading-relaxed shadow-none focus-visible:ring-0"
+          <TiptapEditor
+            content={content}
+            onChange={setContent}
             placeholder="Start writing your article..."
+            className="h-full"
           />
         </div>
 
         <div className="flex items-center justify-between border-t px-6 py-3">
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <FileText className="size-4" />
-              {wordCount.toLocaleString()} words
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Clock className="size-4" />
-              {readingTime} min read
-            </span>
             {hasChanges && (
-              <span className="text-amber-600">• Unsaved changes</span>
+              <span className="text-amber-600">Unsaved changes</span>
             )}
           </div>
 

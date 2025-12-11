@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   User,
   Mail,
@@ -507,13 +508,13 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-2">
               <Button variant="ghost" className="w-full justify-start" asChild>
-                <a href="/team">Team Settings</a>
+                <Link href="/team">Team Settings</Link>
               </Button>
               <Button variant="ghost" className="w-full justify-start" asChild>
-                <a href="/ai-rules">AI Rules</a>
+                <Link href="/ai-rules">AI Rules</Link>
               </Button>
               <Button variant="ghost" className="w-full justify-start" asChild>
-                <a href="#">Help & Support</a>
+                <Link href="#">Help & Support</Link>
               </Button>
             </CardContent>
           </Card>
