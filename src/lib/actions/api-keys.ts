@@ -73,9 +73,9 @@ export async function storeAPIKeySimple(input: {
     .eq("provider_id", input.providerSlug)
     .single();
 
-  // For development: store a placeholder identifier
+  // For development: store a random UUID as placeholder
   // In production, this MUST use Supabase Vault for secure storage
-  const keyIdentifier = `key_${input.providerSlug}_${Date.now()}`;
+  const keyIdentifier = crypto.randomUUID();
 
   if (existingKey) {
     const { error: updateError } = await supabase

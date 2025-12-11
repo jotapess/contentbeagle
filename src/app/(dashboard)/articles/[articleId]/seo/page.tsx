@@ -14,5 +14,9 @@ export default async function SEOPage({ params }: SEOPageProps) {
     notFound();
   }
 
-  return <SEOPageClient article={article} />;
+  return (
+    <div className="relative left-1/2 right-1/2 w-screen -mx-[50vw] px-4 sm:px-6 lg:px-8">
+      <SEOPageClient article={article} />
+    </div>
+  );
 }

@@ -333,8 +333,8 @@ export function SEOPageClient({ article }: SEOPageClientProps) {
   }, [savedKeywords, relatedKeywords]);
 
   return (
-    <div className="flex h-[calc(100vh-8rem)]">
-      <div className="flex-1 overflow-y-auto border-r p-6">
+    <div className="flex h-[calc(100vh-8rem)] gap-6 items-start">
+      <div className="min-w-0 flex-1 overflow-y-auto border-r p-6">
         <h2 className="mb-4 text-lg font-semibold">Article Preview</h2>
         <article className="prose prose-sm max-w-none dark:prose-invert">
           <h1>{article.title}</h1>
